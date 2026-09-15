@@ -1,0 +1,129 @@
+# ==========================================
+# Print Infinity Monorepo .gitignore
+# Node, .NET 8 / WinUI 3, and Supabase
+# ==========================================
+
+# ------------------------------------------
+# Operating System & IDE Files
+# ------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+[Dd]esktop.ini
+
+# Visual Studio / VS Code
+.vs/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.suo
+*.user
+*.userosv
+*.sln.docstates
+
+# ------------------------------------------
+# Node.js / Next.js (/web)
+# ------------------------------------------
+node_modules/
+.pnp
+.pnp.js
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# Next.js build output
+/web/.next/
+/web/out/
+.next/
+out/
+
+# Production & Build outputs
+build/
+dist/
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment files
+.env
+.env*.local
+!.env.example
+
+# Next.js telemetry / bundle analysis
+.next/cache/
+*.tsbuildinfo
+next-env.d.ts
+
+# ------------------------------------------
+# .NET 8 / WinUI 3 (/windows-app)
+# ------------------------------------------
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio Code Analysis & Test results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*_i.c
+*_p.c
+*_h.h
+*.ilk
+*.meta
+*.obj
+*.iobj
+*.pch
+*.pdb
+*.ipdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp
+*.tmp_proj
+*_wpftmp.csproj
+*.log
+*.vspscc
+*.vssscc
+.builds
+*.pidb
+*.log
+
+# Windows App SDK / WinUI 3 packaging
+AppPackages/
+BundleArtifacts/
+Package.StoreAssociation.xml
+_pkginfo.txt
+*.appx
+*.msix
+*.appxbundle
+*.msixbundle
+Generated Files/
+[Gg]enerated\ [Ff]iles/
+
+# ------------------------------------------
+# Supabase (/supabase)
+# ------------------------------------------
+.branches/
+.temp/
+supabase/.branches/
+supabase/.temp/
+supabase/volumes/api/
+supabase/volumes/storage/
+supabase/volumes/db/data/
+*.sql.bak

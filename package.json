@@ -1,0 +1,24 @@
+{
+  "name": "print-infinity",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Monorepo for Print Infinity: Customer Web Portal, Windows Agent, and Supabase Backend",
+  "workspaces": [
+    "web"
+  ],
+  "scripts": {
+    "web:dev": "npm --workspace=web run dev",
+    "web:build": "npm --workspace=web run build",
+    "web:start": "npm --workspace=web run start",
+    "web:lint": "npm --workspace=web run lint"
+  },
+  "keywords": [
+    "print-infinity",
+    "winui3",
+    "nextjs",
+    "supabase",
+    "cloud-printing"
+  ],
+  "author": "Print Infinity Team",
+  "license": "UNLICENSED"
+}
