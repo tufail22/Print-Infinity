@@ -10,8 +10,8 @@ const supabaseAnonKey =
 export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 
 // Helper to get client with current customer token header attached
-export function getCustomerSupabaseClient(): SupabaseClient {
-  const token = getOrCreateCustomerToken();
+export function getCustomerSupabaseClient(explicitToken?: string): SupabaseClient {
+  const token = explicitToken || getOrCreateCustomerToken();
   return createClient(supabaseUrl, supabaseAnonKey, {
     global: {
       headers: {

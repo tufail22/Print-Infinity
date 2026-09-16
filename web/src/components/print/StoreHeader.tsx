@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { Printer, Sparkles, MapPin, CheckCircle2 } from "lucide-react";
+import Image from "next/image";
+import { Sparkles, MapPin, CheckCircle2 } from "lucide-react";
 import { StoreInfo } from "@/types/printJob";
 
 interface StoreHeaderProps {
@@ -19,54 +20,59 @@ export const StoreHeader: React.FC<StoreHeaderProps> = ({
     { num: 1, label: "Start" },
     { num: 2, label: "Upload" },
     { num: 3, label: "Settings" },
-    { num: 4, label: "Payment" },
-    { num: 5, label: "Status" },
+    { num: 4, label: "Preview" },
+    { num: 5, label: "Payment" },
+    { num: 6, label: "Track" },
   ];
 
   return (
-    <header className="w-full bg-white/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-30 transition-all duration-300">
-      <div className="max-w-md mx-auto px-4 py-3">
+    <header className="w-full bg-white/75 backdrop-blur-xl border-b border-white/80 sticky top-0 z-30 shadow-[0_4px_20px_rgba(0,0,0,0.03)] transition-all duration-300">
+      <div className="max-w-md mx-auto px-4 py-2.5">
         {/* Top Store Info Bar */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
-            {/* Animated Store Logo */}
+            {/* Official Animated Print Infinity Logo */}
             <div className="relative flex-shrink-0">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-sky-400 flex items-center justify-center shadow-md shadow-indigo-500/20 text-white animate-pulse">
-                <Printer className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-md shadow-indigo-500/15 bg-black border border-white/40 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <img
+                  src="/logo.png"
+                  alt="Print Infinity Logo"
+                  className="w-full h-full object-contain"
+                />
               </div>
               <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></span>
             </div>
 
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <h1 className="text-sm font-bold text-slate-900 truncate">
-                  {store ? store.name : "Print Infinity Station"}
+                <h1 className="text-sm font-extrabold text-slate-900 tracking-tight truncate">
+                  {store?.name || "Print Infinity"}
                 </h1>
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 flex-shrink-0">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex-shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                   Ready
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 truncate flex items-center gap-1">
                 <MapPin className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                {store?.address || "In-Store Cloud Terminal"}
+                <span>{store?.address || "In-Store Terminal"}</span>
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 px-2 py-1 rounded-xl text-slate-600 text-xs font-semibold">
-            <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin" style={{ animationDuration: "6s" }} />
-            <span>Fast Print</span>
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-50/80 border border-indigo-100/80 text-indigo-700 text-xs font-bold shadow-xs">
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>Instant</span>
           </div>
         </div>
 
-        {/* Step Indicator Bar (Visible on mobile) */}
+        {/* 6-Step Progress Pills (Mobile Optimized) */}
         {currentStep > 1 && (
-          <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
+          <div className="mt-2.5 pt-2 border-t border-slate-100/80 flex items-center justify-between">
             {steps.map((step, idx) => {
               const isPassed = currentStep > step.num;
               const isCurrent = currentStep === step.num;
-              const canClick = isPassed && onStepClick && currentStep < 5;
+              const canClick = isPassed && onStepClick && currentStep < 6;
 
               return (
                 <div key={step.num} className="flex items-center flex-1 last:flex-initial">
@@ -74,7 +80,7 @@ export const StoreHeader: React.FC<StoreHeaderProps> = ({
                     type="button"
                     disabled={!canClick}
                     onClick={() => canClick && onStepClick(step.num)}
-                    className={`flex items-center gap-1.5 text-xs font-medium transition-all ${
+                    className={`flex items-center gap-1 text-xs font-medium transition-all ${
                       isCurrent
                         ? "text-indigo-600 font-bold"
                         : isPassed
@@ -93,12 +99,12 @@ export const StoreHeader: React.FC<StoreHeaderProps> = ({
                     >
                       {isPassed ? <CheckCircle2 className="w-3 h-3" /> : step.num}
                     </span>
-                    <span className="hidden sm:inline text-[11px]">{step.label}</span>
+                    <span className="hidden sm:inline text-[10px]">{step.label}</span>
                   </button>
 
                   {idx < steps.length - 1 && (
                     <div
-                      className={`flex-1 h-0.5 mx-1.5 rounded-full transition-colors ${
+                      className={`flex-1 h-0.5 mx-1 rounded-full transition-colors ${
                         currentStep > step.num ? "bg-emerald-400" : "bg-slate-200"
                       }`}
                     />

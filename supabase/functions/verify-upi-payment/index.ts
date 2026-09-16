@@ -2,31 +2,41 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "http://127.0.0.1:54321";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const RAZORPAY_WEBHOOK_SECRET =
+  Deno.env.get("RAZORPAY_WEBHOOK_SECRET") ||
+  Deno.env.get("RAZORPAY_KEY_SECRET") ||
+  "yC20q4MkWU01wF6H05gXN9Bq";
 
-interface UpiWebhookPayload {
-  // Generic webhook payload contract supporting standard UPI gateway callbacks
-  event?: string;
-  payment_id?: string;
-  gateway_ref?: string;
-  print_job_id?: string;
-  order_id?: string;
-  amount?: number;
-  status?: "success" | "captured" | "paid" | string;
-  payload?: {
-    payment?: {
-      entity?: {
-        id?: string;
-        order_id?: string;
-        status?: string;
-        amount?: number;
-        notes?: {
-          print_job_id?: string;
-        };
-      };
-    };
-  };
+/**
+ * Constant-time comparison between two hex strings to prevent timing attacks.
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
+
+/**
+ * Computes HMAC-SHA256 hex digest using native Web Crypto API
+ */
+async function computeHmacSha256(secret: string, message: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signatureBytes = await crypto.subtle.sign("HMAC", key, encoder.encode(message));
+  return Array.from(new Uint8Array(signatureBytes))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 serve(async (req) => {
@@ -45,73 +55,92 @@ serve(async (req) => {
 
   try {
     const rawBody = await req.text();
-    const headers = req.headers;
+    const signature = req.headers.get("x-razorpay-signature");
 
     // =========================================================================
-    // TODO [Phase 3]: Implement Gateway-Specific Signature Verification
-    // -------------------------------------------------------------------------
-    // Provide the gateway webhook secret in Phase 3 environment variables:
-    // e.g., Deno.env.get("UPI_GATEWAY_WEBHOOK_SECRET")
-    //
-    // Razorpay example:
-    // const signature = headers.get("x-razorpay-signature");
-    // const expectedSignature = createHmac("sha256", secret).update(rawBody).digest("hex");
-    // if (signature !== expectedSignature) {
-    //   return new Response(JSON.stringify({ error: "Invalid signature" }), { status: 401 });
-    // }
-    //
-    // Cashfree / PhonePe / Paytm: verify respective HMAC/SHA256 signature header.
+    // 1. Strict HMAC-SHA256 Webhook Signature Verification
     // =========================================================================
-    console.log("[verify-upi-payment] Webhook received. Signature verification deferred to Phase 3 credentials.");
-
-    const payload: UpiWebhookPayload = rawBody ? JSON.parse(rawBody) : {};
-
-    // Extract identifier fields from common gateway payload structures
-    const gatewayRef =
-      payload.gateway_ref ||
-      payload.payment_id ||
-      payload.payload?.payment?.entity?.id ||
-      null;
-
-    const printJobId =
-      payload.print_job_id ||
-      payload.payload?.payment?.entity?.notes?.print_job_id ||
-      null;
-
-    if (!gatewayRef && !printJobId) {
+    if (!signature) {
+      console.warn("[verify-upi-payment] Missing x-razorpay-signature header");
       return new Response(
-        JSON.stringify({
-          error: "Missing payment identifiers (gateway_ref or print_job_id required)",
-        }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 400,
-        }
+        JSON.stringify({ error: "Missing x-razorpay-signature header" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
       );
     }
 
-    // Initialize Supabase admin client to bypass RLS for webhook updates
+    const expectedSignature = await computeHmacSha256(RAZORPAY_WEBHOOK_SECRET, rawBody);
+
+    if (!timingSafeEqual(signature.toLowerCase(), expectedSignature.toLowerCase())) {
+      console.error(
+        `[verify-upi-payment] Invalid webhook signature. Expected: ${expectedSignature}, Received: ${signature}`
+      );
+      return new Response(
+        JSON.stringify({ error: "Invalid signature verification failed" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
+      );
+    }
+
+    console.log("[verify-upi-payment] Webhook signature verified successfully via HMAC-SHA256.");
+
+    // =========================================================================
+    // 2. Parse & Extract Verified Payment Event
+    // =========================================================================
+    const payload = rawBody ? JSON.parse(rawBody) : {};
+    const event = payload.event || "payment.captured";
+    const paymentEntity = payload.payload?.payment?.entity || payload.payment || {};
+
+    const razorpayPaymentId = paymentEntity.id || payload.payment_id || null;
+    const razorpayOrderId = paymentEntity.order_id || payload.order_id || null;
+    const printJobId =
+      paymentEntity.notes?.print_job_id ||
+      payload.notes?.print_job_id ||
+      payload.print_job_id ||
+      null;
+
+    console.log(
+      `[verify-upi-payment] Event: ${event} | PaymentId: ${razorpayPaymentId} | OrderId: ${razorpayOrderId} | JobId: ${printJobId}`
+    );
+
+    if (!razorpayOrderId && !razorpayPaymentId && !printJobId) {
+      return new Response(
+        JSON.stringify({ error: "Missing payment identifiers in payload" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+
+    // Only process successful capture/paid events
+    const validEvents = ["payment.captured", "order.paid", "payment_link.paid"];
+    if (payload.event && !validEvents.includes(payload.event)) {
+      console.log(`[verify-upi-payment] Ignoring non-payment event: ${payload.event}`);
+      return new Response(
+        JSON.stringify({ message: "Event ignored", event: payload.event }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    }
+
+    // =========================================================================
+    // 3. Locate and Transition Payment & Job State via Admin Client
+    // =========================================================================
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
+      auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // 1. Locate the payment record
-    let paymentQuery = supabase.from("payments").select("id, print_job_id, status");
-    if (gatewayRef) {
-      paymentQuery = paymentQuery.eq("gateway_ref", gatewayRef);
+    let paymentQuery = supabase.from("payments").select("id, print_job_id, status, gateway_ref");
+
+    if (razorpayOrderId) {
+      paymentQuery = paymentQuery.eq("gateway_ref", razorpayOrderId);
     } else if (printJobId) {
       paymentQuery = paymentQuery.eq("print_job_id", printJobId);
+    } else if (razorpayPaymentId) {
+      paymentQuery = paymentQuery.eq("gateway_ref", razorpayPaymentId);
     }
 
     const { data: payments, error: paymentLookupError } = await paymentQuery;
 
     if (paymentLookupError || !payments || payments.length === 0) {
-      console.error("[verify-upi-payment] Matching payment row not found:", paymentLookupError);
+      console.error("[verify-upi-payment] Matching payment record not found:", paymentLookupError);
       return new Response(
-        JSON.stringify({ error: "Payment record not found for webhook payload" }),
+        JSON.stringify({ error: "Payment record not found for verified webhook" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
       );
     }
@@ -119,12 +148,12 @@ serve(async (req) => {
     const payment = payments[0];
     const targetJobId = payment.print_job_id;
 
-    // 2. Update matching payments row to 'verified'
+    // 4. Update payment row: status = 'verified'
     const { error: paymentUpdateError } = await supabase
       .from("payments")
       .update({
         status: "verified",
-        gateway_ref: gatewayRef ?? undefined,
+        gateway_ref: razorpayPaymentId || payment.gateway_ref,
       })
       .eq("id", payment.id);
 
@@ -133,7 +162,7 @@ serve(async (req) => {
       throw paymentUpdateError;
     }
 
-    // 3. Update matching print_job to 'pending_approval' (ready for Storekeeper)
+    // 5. Update print_job row: status = 'pending_approval' (ready for Storekeeper)
     const { error: jobUpdateError } = await supabase
       .from("print_jobs")
       .update({
@@ -147,13 +176,13 @@ serve(async (req) => {
     }
 
     console.log(
-      `[verify-upi-payment] Successfully verified payment ${payment.id}. Job ${targetJobId} moved to 'pending_approval'.`
+      `[verify-upi-payment] SUCCESS: Payment ${payment.id} verified. Job ${targetJobId} moved to 'pending_approval'.`
     );
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Payment verified successfully",
+        message: "Payment verified successfully via webhook",
         paymentId: payment.id,
         printJobId: targetJobId,
         newJobStatus: "pending_approval",

@@ -6,6 +6,32 @@
 const SESSION_TOKEN_KEY = "print_infinity_customer_token";
 let inMemoryToken: string | null = null;
 
+export function generateCustomerToken(): string {
+  let token = "";
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    const bytes = new Uint8Array(24); // 192 bits of entropy
+    crypto.getRandomValues(bytes);
+    token = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  } else {
+    // Fallback using timestamp + Math.random
+    token = "cust_" + Math.random().toString(36).substring(2) + Date.now().toString(36);
+  }
+  return token;
+}
+
+export function rotateCustomerToken(): string {
+  const token = generateCustomerToken();
+  inMemoryToken = token;
+  if (typeof window !== "undefined") {
+    try {
+      sessionStorage.setItem(SESSION_TOKEN_KEY, token);
+    } catch {
+      // ignore
+    }
+  }
+  return token;
+}
+
 export function getOrCreateCustomerToken(): string {
   // Check memory cache first
   if (inMemoryToken) {
@@ -25,28 +51,7 @@ export function getOrCreateCustomerToken(): string {
     }
   }
 
-  // Generate cryptographically secure 256-bit random hex token
-  let token = "";
-  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
-    const bytes = new Uint8Array(24); // 192 bits of entropy
-    crypto.getRandomValues(bytes);
-    token = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-  } else {
-    // Fallback using timestamp + Math.random
-    token = "cust_" + Math.random().toString(36).substring(2) + Date.now().toString(36);
-  }
-
-  inMemoryToken = token;
-
-  if (typeof window !== "undefined") {
-    try {
-      sessionStorage.setItem(SESSION_TOKEN_KEY, token);
-    } catch {
-      // ignore
-    }
-  }
-
-  return token;
+  return rotateCustomerToken();
 }
 
 export function clearCustomerToken(): void {

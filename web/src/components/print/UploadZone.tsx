@@ -11,7 +11,8 @@ import {
   FileCheck2,
   Sparkles,
   Layers,
-  HardDriveDownload,
+  CheckCircle,
+  FilePlus,
 } from "lucide-react";
 import { UploadedFileItem } from "@/types/printJob";
 import { getPdfPageCount } from "@/lib/pdfUtils";
@@ -70,18 +71,18 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
       // Validate Extension
       if (!ALLOWED_EXTENSIONS.includes(ext)) {
         setErrorMessage(
-          `Unsupported file "${file.name}". Please upload PDF, Word (.docx), PowerPoint, or Images.`
+          `Unsupported file "${file.name}". Please upload PDF, Word (.docx), PPT, or Images.`
         );
         continue;
       }
 
       // Validate 100MB size limit
       if (file.size > MAX_FILE_SIZE_BYTES) {
-        setErrorMessage(`"${file.name}" exceeds the 100MB limit. Please upload a smaller file.`);
+        setErrorMessage(`"${file.name}" exceeds the 100MB limit. Please select a smaller file.`);
         continue;
       }
 
-      // Check if image requires client-side compression (> 2MB)
+      // Compress raster images if above ~2MB
       let isCompressed = false;
       if (file.type.startsWith("image/") && file.size > 2 * 1024 * 1024) {
         const compressed = await compressImageIfNeeded(file);
@@ -91,7 +92,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
         }
       }
 
-      // Determine page count (PDF inspection or fallback)
+      // Determine page count
       let pages = 1;
       if (file.type === "application/pdf" || lowerName.endsWith(".pdf")) {
         pages = await getPdfPageCount(file);
@@ -148,7 +149,6 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
   const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       await processSelectedFiles(e.target.files);
-      // Reset input value so same file can be re-selected if removed
       e.target.value = "";
     }
   };
@@ -170,7 +170,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
 
   return (
     <div className="w-full space-y-4">
-      {/* Tap & Drag Upload Box */}
+      {/* Premium Glassmorphic Dropzone */}
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -185,10 +185,10 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
         tabIndex={0}
         role="button"
         aria-label="Upload document to print. Tap or drag files here."
-        className={`relative overflow-hidden cursor-pointer rounded-3xl border-2 border-dashed p-6 sm:p-8 text-center transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-indigo-100 ${
+        className={`relative overflow-hidden cursor-pointer rounded-3xl p-7 text-center transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-indigo-100 ${
           isDragOver
-            ? "border-indigo-600 bg-indigo-50/70 scale-[1.01]"
-            : "border-slate-300 hover:border-indigo-400 bg-white hover:bg-slate-50/60 shadow-sm"
+            ? "border-2 border-dashed border-indigo-500 bg-indigo-50/80 scale-[1.01] shadow-lg shadow-indigo-500/10"
+            : "glass-panel hover:bg-white/95 border-2 border-dashed border-indigo-200/80 hover:border-indigo-400"
         }`}
       >
         <input
@@ -201,8 +201,8 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
           aria-hidden="true"
         />
 
-        <div className="flex flex-col items-center justify-center space-y-3">
-          <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
+        <div className="flex flex-col items-center justify-center space-y-3.5">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-500/10 via-sky-500/10 to-amber-500/10 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-inner group-hover:scale-110 transition-transform">
             {isProcessing ? (
               <Sparkles className="w-8 h-8 animate-spin text-indigo-500" />
             ) : (
@@ -211,30 +211,30 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
           </div>
 
           <div>
-            <p className="text-base font-bold text-slate-800">
-              {isDragOver ? "Drop files to upload" : "Tap or Drag documents to print"}
+            <p className="text-base font-extrabold text-slate-800 tracking-tight">
+              {isDragOver ? "Drop documents to upload" : "Tap or Drag files to print"}
             </p>
-            <p className="text-xs text-slate-500 mt-1">
-              Supports PDF, Word, PowerPoint, Images (Max 100MB)
+            <p className="text-xs text-slate-500 mt-1 font-medium">
+              PDF, Word, PowerPoint, Images (Max 100MB per file)
             </p>
           </div>
 
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100/90 text-slate-700 text-xs font-bold border border-slate-200/60 shadow-xs">
             <Layers className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Multiple files allowed</span>
+            <span>Multiple files supported</span>
           </div>
         </div>
       </div>
 
       {/* Error Message */}
       {errorMessage && (
-        <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs animate-shake">
+        <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-rose-50/90 border border-rose-200 text-rose-800 text-xs shadow-sm animate-shake">
           <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
           <p className="flex-1 font-medium">{errorMessage}</p>
           <button
             type="button"
             onClick={() => setErrorMessage(null)}
-            className="text-rose-500 hover:text-rose-700 font-bold"
+            className="text-rose-500 hover:text-rose-700 font-bold px-1"
           >
             ✕
           </button>
@@ -244,9 +244,12 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
       {/* Uploaded File List */}
       {files.length > 0 && (
         <div className="space-y-2.5">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold px-1">
-            <span>READY TO PRINT ({files.length})</span>
-            <span>
+          <div className="flex items-center justify-between text-xs text-slate-600 font-bold px-1">
+            <span className="flex items-center gap-1.5">
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+              <span>DOCUMENTS ATTACHED ({files.length})</span>
+            </span>
+            <span className="text-indigo-700">
               Total Pages: {files.reduce((sum, f) => sum + f.totalPages, 0)}
             </span>
           </div>
@@ -254,11 +257,11 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
           {files.map((item) => (
             <div
               key={item.id}
-              className="group relative flex items-center gap-3 p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-sm hover:border-indigo-200 transition-all"
+              className="glass-panel group relative flex items-center gap-3 p-3.5 rounded-2xl border border-white/90 shadow-sm hover:border-indigo-200 transition-all"
             >
-              {/* Thumbnail or Icon */}
+              {/* Thumbnail / Icon */}
               {item.previewUrl ? (
-                <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex-shrink-0">
+                <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex-shrink-0 shadow-xs">
                   <img
                     src={item.previewUrl}
                     alt={item.name}
@@ -266,32 +269,32 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
                   />
                 </div>
               ) : (
-                <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center flex-shrink-0">
+                <div className="w-12 h-12 rounded-xl bg-indigo-50/80 border border-indigo-100 flex items-center justify-center flex-shrink-0 shadow-xs">
                   {getFileIcon(item)}
                 </div>
               )}
 
-              {/* File Info */}
+              {/* Info */}
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-bold text-slate-800 truncate">
                   {item.name}
                 </p>
                 <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
-                  <span className="inline-flex items-center gap-1 font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
+                  <span className="inline-flex items-center gap-1 font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
                     <FileCheck2 className="w-3 h-3 text-indigo-600" />
                     {item.totalPages} {item.totalPages === 1 ? "page" : "pages"}
                   </span>
                   <span>•</span>
                   <span>{item.formattedSize}</span>
                   {item.isCompressed && (
-                    <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-medium">
+                    <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-bold">
                       Compressed
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* Delete button */}
+              {/* Remove button */}
               {!isUploading && (
                 <button
                   type="button"
@@ -310,13 +313,25 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
               {isUploading && item.uploadProgress < 100 && (
                 <div className="absolute inset-x-0 bottom-0 h-1 bg-slate-100 rounded-b-2xl overflow-hidden">
                   <div
-                    className="h-full bg-indigo-600 transition-all duration-300"
+                    className="h-full bg-gradient-to-r from-indigo-500 to-sky-500 transition-all duration-300"
                     style={{ width: `${item.uploadProgress}%` }}
                   />
                 </div>
               )}
             </div>
           ))}
+
+          {/* Add more button */}
+          {!isUploading && (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full py-2.5 px-3 rounded-xl border border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-50/50 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <FilePlus className="w-4 h-4" />
+              <span>Add Another Document</span>
+            </button>
+          )}
         </div>
       )}
     </div>

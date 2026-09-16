@@ -16,10 +16,14 @@ import {
   ShieldCheck,
   Zap,
   Loader2,
+  Layers,
+  Eye,
+  Lock,
 } from "lucide-react";
 import { StoreHeader } from "@/components/print/StoreHeader";
 import { UploadZone } from "@/components/print/UploadZone";
 import { SettingsSheet } from "@/components/print/SettingsSheet";
+import { PrintPreview } from "@/components/print/PrintPreview";
 import { PaymentSelector } from "@/components/print/PaymentSelector";
 import { LiveTracker } from "@/components/print/LiveTracker";
 import {
@@ -30,28 +34,36 @@ import {
   PaymentMethod,
 } from "@/types/printJob";
 import { calculateEstimatedPrice } from "@/config/pricing";
-import { getOrCreateCustomerToken } from "@/lib/tokenManager";
+import { getOrCreateCustomerToken, rotateCustomerToken } from "@/lib/tokenManager";
 import { getCustomerSupabaseClient, supabase } from "@/lib/supabaseClient";
 
 function PrintWizardContent() {
   const searchParams = useSearchParams();
   const storeIdParam = searchParams.get("store");
 
-  // State
+  // State: 1: Landing, 2: Upload, 3: Settings, 4: Preview, 5: Payment, 6: Status
+  const [step, setStep] = useState<number>(1);
   const [store, setStore] = useState<StoreInfo | null>(null);
   const [loadingStore, setLoadingStore] = useState(true);
-  const [step, setStep] = useState<number>(1); // 1: Landing, 2: Upload, 3: Settings, 4: Payment, 5: Status
   const [files, setFiles] = useState<UploadedFileItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeJob, setActiveJob] = useState<PrintJobRecord | null>(null);
   const [customerToken, setCustomerToken] = useState<string>("");
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>("upi");
 
+  // Check if any uploaded files are images
+  const hasImages = files.some(
+    (f) =>
+      f.type.startsWith("image/") ||
+      /\.(jpg|jpeg|png|webp)$/i.test(f.name)
+  );
+
   // Print settings state
   const [settings, setSettings] = useState<DetailedPrintSettings>({
     colorMode: "bw",
     copies: 1,
     paperSize: "A4",
+    photoSize: "Full page",
     orientation: "portrait",
     duplex: false,
     duplexEdge: "long",
@@ -65,6 +77,17 @@ function PrintWizardContent() {
     quality: "standard",
   });
 
+  // Automatically select Color mode when images are uploaded
+  useEffect(() => {
+    if (hasImages && settings.colorMode === "bw") {
+      setSettings((prev) => ({
+        ...prev,
+        colorMode: "color",
+        photoSize: prev.photoSize || "Full page",
+      }));
+    }
+  }, [hasImages]);
+
   // Calculate total pages across uploaded files
   const totalPages = files.reduce((sum, f) => sum + f.totalPages, 0) || 1;
   const priceBreakdown = calculateEstimatedPrice({
@@ -77,7 +100,7 @@ function PrintWizardContent() {
     pagesPerSheet: settings.pagesPerSheet,
   });
 
-  // 1. Initialize customer token & load store metadata
+  // Initialize customer token & load store metadata
   useEffect(() => {
     const token = getOrCreateCustomerToken();
     setCustomerToken(token);
@@ -88,8 +111,7 @@ function PrintWizardContent() {
         let targetStoreId = storeIdParam;
 
         if (!targetStoreId) {
-          // If no store query param provided, fetch the first active store from Supabase
-          const { data, error } = await supabase
+          const { data } = await supabase
             .from("stores")
             .select("id, name, address, active")
             .eq("active", true)
@@ -98,16 +120,15 @@ function PrintWizardContent() {
           if (data && data.length > 0) {
             setStore(data[0] as StoreInfo);
           } else {
-            // Default fallback
             setStore({
               id: "a0000000-0000-0000-0000-000000000001",
-              name: "Print Infinity Flagship — Store #1",
+              name: "Print Infinity Flagship",
               address: "Shop 12, Retail Arcade, Commercial Center",
               active: true,
             });
           }
         } else {
-          const { data, error } = await supabase
+          const { data } = await supabase
             .from("stores")
             .select("id, name, address, active")
             .eq("id", targetStoreId)
@@ -133,14 +154,16 @@ function PrintWizardContent() {
 
     try {
       setIsSubmitting(true);
-      const scopedClient = getCustomerSupabaseClient();
       const firstFile = files[0];
+      const jobToken = rotateCustomerToken();
+      setCustomerToken(jobToken);
+      const scopedClient = getCustomerSupabaseClient(jobToken);
 
       // 1. Upload file directly to private "print-uploads" Storage bucket using anon client + RLS
       const fileExt = firstFile.name.substring(firstFile.name.lastIndexOf("."));
-      const storagePath = `${store.id}/${customerToken.slice(0, 12)}_${Date.now()}${fileExt}`;
+      const storagePath = `${store.id}/${jobToken.slice(0, 12)}_${Date.now()}${fileExt}`;
 
-      const { data: uploadData, error: uploadError } = await scopedClient.storage
+      const { error: uploadError } = await scopedClient.storage
         .from("print-uploads")
         .upload(storagePath, firstFile.file, {
           cacheControl: "3600",
@@ -154,19 +177,21 @@ function PrintWizardContent() {
       // Storage expires in 15 minutes
       const storageExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
-      // 2. Insert print_job row with customer_token
+      // 2. Insert print_job row with unique jobToken
+      // CRITICAL SECURITY: Status is ALWAYS pending_payment initially.
+      // Never trust client-side messages to set verified or approved.
       const { data: jobData, error: jobError } = await scopedClient
         .from("print_jobs")
         .insert({
           store_id: store.id,
-          status: method === "upi" ? "pending_approval" : "pending_payment",
+          status: "pending_payment",
           color_mode: settings.colorMode,
           copies: settings.copies,
-          paper_size: settings.paperSize,
+          paper_size: settings.photoSize ? settings.photoSize : settings.paperSize,
           duplex: settings.duplex,
           storage_path: storagePath,
           storage_expires_at: storageExpiresAt,
-          customer_token: customerToken,
+          customer_token: jobToken,
         })
         .select()
         .single();
@@ -175,21 +200,84 @@ function PrintWizardContent() {
         throw new Error(jobError?.message || "Failed to create print job record");
       }
 
-      // 3. Insert payment row
+      // 3. Insert payment row with status 'pending'
       const { error: paymentError } = await scopedClient.from("payments").insert({
         print_job_id: jobData.id,
         method: method,
         amount: priceBreakdown.total,
-        status: method === "upi" ? "verified" : "pending",
-        gateway_ref: gatewayRef || (method === "cash" ? "CASH_COUNTER" : "UPI_STUB"),
+        status: "pending",
+        gateway_ref: gatewayRef || (method === "cash" ? "CASH_COUNTER" : "RAZORPAY_INIT"),
       });
 
       if (paymentError) {
         console.warn("Payment insert notice:", paymentError);
       }
 
+      // 4. For UPI: Create Razorpay Order via server-side API and launch Razorpay Checkout
+      if (method === "upi") {
+        try {
+          const orderRes = await fetch("/api/payment/create-order", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              print_job_id: jobData.id,
+              amount: priceBreakdown.total,
+              customer_token: jobToken,
+            }),
+          });
+
+          if (orderRes.ok) {
+            const orderData = await orderRes.json();
+            
+            // Load Razorpay SDK dynamically
+            const loadScript = (): Promise<boolean> => {
+              return new Promise((resolve) => {
+                if (typeof window !== "undefined" && (window as any).Razorpay) {
+                  resolve(true);
+                  return;
+                }
+                const script = document.createElement("script");
+                script.src = "https://checkout.razorpay.com/v1/checkout.js";
+                script.onload = () => resolve(true);
+                script.onerror = () => resolve(false);
+                document.body.appendChild(script);
+              });
+            };
+
+            const isLoaded = await loadScript();
+            if (isLoaded && (window as any).Razorpay) {
+              const rzp = new (window as any).Razorpay({
+                key: orderData.keyId,
+                amount: orderData.amount,
+                currency: orderData.currency || "INR",
+                name: "Print Infinity",
+                description: `Print Job (${jobData.id.slice(0, 8)})`,
+                order_id: orderData.orderId,
+                theme: { color: "#4f46e5" },
+                modal: {
+                  ondismiss: () => {
+                    // Navigate to tracker; Supabase Realtime will reflect webhook status
+                    setActiveJob(jobData as PrintJobRecord);
+                    setStep(6);
+                  },
+                },
+                handler: () => {
+                  // Customer completed payment; Realtime webhook will flip status to pending_approval
+                  setActiveJob(jobData as PrintJobRecord);
+                  setStep(6);
+                },
+              });
+              rzp.open();
+              return;
+            }
+          }
+        } catch (rzpErr) {
+          console.warn("[Razorpay] Order creation notice:", rzpErr);
+        }
+      }
+
       setActiveJob(jobData as PrintJobRecord);
-      setStep(5); // Advance to live tracker
+      setStep(6); // Advance to live tracker (Step 6)
     } catch (err) {
       console.error("Submission error:", err);
       alert("Could not submit print job: " + (err as Error).message);
@@ -201,12 +289,13 @@ function PrintWizardContent() {
   const handleResetForNewJob = () => {
     setFiles([]);
     setActiveJob(null);
+    rotateCustomerToken();
     setStep(1);
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50/70 text-slate-900 pb-20 sm:pb-12">
-      {/* Sticky Top Store Header */}
+    <div className="min-h-screen flex flex-col text-slate-900 pb-20 sm:pb-12">
+      {/* Sticky Glassmorphic Top Header */}
       <StoreHeader
         store={store}
         currentStep={step}
@@ -214,74 +303,80 @@ function PrintWizardContent() {
       />
 
       {/* Main Container */}
-      <main className="flex-1 w-full max-w-md mx-auto px-4 pt-4 pb-24">
+      <main className="flex-1 w-full max-w-md mx-auto px-4 pt-3 pb-24">
         {/* SCREEN 1: LANDING SCREEN */}
         {step === 1 && (
-          <div className="flex flex-col items-center justify-center text-center space-y-6 pt-6 pb-8 animate-fadeIn">
-            {/* Animated Store Logo Card */}
-            <div className="relative group">
-              <div className="w-24 h-24 rounded-3xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-sky-400 flex items-center justify-center text-white shadow-xl shadow-indigo-500/25 ring-4 ring-indigo-50 transform hover:scale-105 transition-all duration-300">
-                <Printer className="w-12 h-12 animate-pulse" />
+          <div className="flex flex-col items-center justify-center text-center space-y-6 pt-5 pb-8 animate-fadeIn">
+            {/* Animated Official Print Infinity Logo Badge */}
+            <div className="relative group animate-float">
+              <div className="w-28 h-28 rounded-3xl overflow-hidden bg-black p-1 shadow-2xl shadow-indigo-500/25 border-2 border-white/80 flex items-center justify-center transform group-hover:scale-105 transition-all duration-300">
+                <img
+                  src="/logo.png"
+                  alt="Print Infinity Brand Logo"
+                  className="w-full h-full object-contain"
+                />
               </div>
-              <span className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 border-4 border-white rounded-full flex items-center justify-center text-white">
-                <CheckCircle2 className="w-3.5 h-3.5" />
+              <span className="absolute -bottom-1 -right-1 w-7 h-7 bg-emerald-500 border-3 border-white rounded-full flex items-center justify-center text-white shadow-sm">
+                <CheckCircle2 className="w-4 h-4" />
               </span>
             </div>
 
             {/* Store Name & Welcoming Tagline */}
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50/90 text-emerald-800 text-xs font-black border border-emerald-200/80 shadow-xs">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
                 <span>Printer Online &amp; Ready</span>
               </div>
 
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                {store?.name || "Print Infinity Station"}
+              <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+                Print Infinity
               </h2>
 
-              <p className="text-xs text-slate-500 max-w-xs mx-auto flex items-center justify-center gap-1">
+              <p className="text-xs text-slate-500 max-w-xs mx-auto flex items-center justify-center gap-1 font-medium">
                 <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                <span>{store?.address || "In-Store Cloud Terminal"}</span>
+                <span>{store?.address || "In-Store Terminal"}</span>
               </p>
             </div>
 
-            {/* Feature Highlights Cards */}
-            <div className="grid grid-cols-2 gap-2.5 w-full text-left">
-              <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-1">
-                <div className="w-7 h-7 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                  <ShieldCheck className="w-4 h-4" />
+            {/* Feature Highlights Cards: Easy & Fast and Privacy Focused */}
+            <div className="grid grid-cols-2 gap-3 w-full text-left">
+              {/* Easy & Fast Card */}
+              <div className="glass-panel p-4 rounded-3xl border border-white/90 shadow-sm space-y-1.5">
+                <div className="w-8 h-8 rounded-2xl bg-gradient-to-tr from-amber-400 to-orange-500 text-white flex items-center justify-center shadow-xs">
+                  <Zap className="w-4.5 h-4.5" />
                 </div>
-                <p className="text-xs font-bold text-slate-800">Zero-Disk Privacy</p>
-                <p className="text-[11px] text-slate-500">
-                  Streams directly to printer memory; never saved to disk.
+                <p className="text-xs font-extrabold text-slate-800">Easy &amp; Fast</p>
+                <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                  Print your documents in seconds with quickly
                 </p>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-1">
-                <div className="w-7 h-7 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                  <Zap className="w-4 h-4" />
+              {/* Privacy Focused Card */}
+              <div className="glass-panel p-4 rounded-3xl border border-white/90 shadow-sm space-y-1.5">
+                <div className="w-8 h-8 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center shadow-xs">
+                  <Lock className="w-4.5 h-4.5" />
                 </div>
-                <p className="text-xs font-bold text-slate-800">Instant UPI &amp; Cash</p>
-                <p className="text-[11px] text-slate-500">
-                  Pay at counter or scan UPI for instant dispatch.
+                <p className="text-xs font-extrabold text-slate-800">Privacy Focused</p>
+                <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                  Your documents are encrypted and automatically deleted after printing
                 </p>
               </div>
             </div>
 
             {/* Prominent CTA in Center */}
-            <div className="w-full pt-2">
+            <div className="w-full pt-1">
               <button
                 type="button"
                 id="btn-start-print"
                 onClick={() => setStep(2)}
-                className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-extrabold text-sm shadow-xl shadow-indigo-600/30 hover:shadow-indigo-600/40 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 focus:outline-none focus:ring-4 focus:ring-indigo-300"
+                className="glass-button-primary w-full py-4 px-6 rounded-2xl text-white font-black text-sm shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 focus:outline-none focus:ring-4 focus:ring-indigo-300"
               >
                 <UploadCloud className="w-5 h-5" />
                 <span>Upload Your Document to Print</span>
-                <ArrowRight className="w-4 h-4 ml-1" />
+                <ArrowRight className="w-4 h-4 ml-0.5" />
               </button>
               <p className="text-[11px] text-slate-400 mt-2 font-medium">
-                No app installation or account sign-up needed.
+                No app install, no account registration required.
               </p>
             </div>
           </div>
@@ -289,11 +384,11 @@ function PrintWizardContent() {
 
         {/* SCREEN 2: UPLOAD */}
         {step === 2 && (
-          <div className="space-y-5 animate-fadeIn">
+          <div className="space-y-4 animate-fadeIn">
             <div className="space-y-1">
-              <h2 className="text-xl font-black text-slate-900">Upload Documents</h2>
-              <p className="text-xs text-slate-500">
-                Add PDFs, Word docs, slides, or photos you wish to print.
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Upload Documents</h2>
+              <p className="text-xs text-slate-500 font-medium">
+                Add PDFs, Word documents, presentations, or photos to print.
               </p>
             </div>
 
@@ -303,16 +398,18 @@ function PrintWizardContent() {
               isUploading={isSubmitting}
             />
 
-            {/* Bottom Continue Button */}
+            {/* Continue Button */}
             {files.length > 0 && (
-              <div className="pt-3">
+              <div className="pt-2">
                 <button
                   type="button"
                   id="btn-continue-to-settings"
                   onClick={() => setStep(3)}
-                  className="w-full py-3.5 px-5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                  className="glass-button-primary w-full py-3.5 px-5 rounded-2xl text-white font-extrabold text-xs shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                 >
-                  <span>Continue to Print Settings ({files.length} {files.length === 1 ? "file" : "files"})</span>
+                  <span>
+                    Continue to Print Settings ({files.length} {files.length === 1 ? "document" : "documents"})
+                  </span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -322,18 +419,18 @@ function PrintWizardContent() {
 
         {/* SCREEN 3: PRINT SETTINGS */}
         {step === 3 && (
-          <div className="space-y-5 animate-fadeIn">
+          <div className="space-y-4 animate-fadeIn">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-black text-slate-900">Print Settings</h2>
-                <p className="text-xs text-slate-500">
-                  Configure color, copies, size, and layout.
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">Print Settings</h2>
+                <p className="text-xs text-slate-500 font-medium">
+                  Customize colors, copies, sizing, and paper layout.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setStep(2)}
-                className="text-xs text-indigo-600 font-bold hover:underline"
+                className="text-xs text-indigo-600 font-extrabold hover:underline"
               >
                 Change Files
               </button>
@@ -343,22 +440,24 @@ function PrintWizardContent() {
               settings={settings}
               onChange={(updated) => setSettings(updated)}
               totalPages={totalPages}
+              hasImages={hasImages}
             />
 
-            {/* Proceed to Payment */}
+            {/* Proceed to Preview */}
             <div className="pt-1">
               <button
                 type="button"
-                id="btn-continue-to-payment"
+                id="btn-continue-to-preview"
                 onClick={() => setStep(4)}
-                className="w-full py-3.5 px-5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-lg shadow-indigo-600/25 active:scale-[0.98] transition-all flex items-center justify-between"
+                className="glass-button-primary w-full py-3.5 px-5 rounded-2xl text-white font-black text-xs shadow-xl active:scale-[0.98] transition-all flex items-center justify-between"
               >
                 <div className="text-left">
-                  <span className="block text-[10px] text-indigo-200">Total Price</span>
-                  <span className="text-sm font-extrabold">{priceBreakdown.formattedTotal}</span>
+                  <span className="block text-[10px] text-indigo-100 font-medium">Total Amount</span>
+                  <span className="text-sm font-black">{priceBreakdown.formattedTotal}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span>Proceed to Payment</span>
+                  <Eye className="w-4 h-4" />
+                  <span>Preview Document</span>
                   <ArrowRight className="w-4 h-4" />
                 </div>
               </button>
@@ -366,22 +465,33 @@ function PrintWizardContent() {
           </div>
         )}
 
-        {/* SCREEN 4: PAYMENT */}
+        {/* SCREEN 4: PRINT PREVIEW */}
         {step === 4 && (
-          <div className="space-y-5 animate-fadeIn">
+          <PrintPreview
+            files={files}
+            settings={settings}
+            totalPages={totalPages}
+            onProceedToPayment={() => setStep(5)}
+            onBackToSettings={() => setStep(3)}
+          />
+        )}
+
+        {/* SCREEN 5: PAYMENT */}
+        {step === 5 && (
+          <div className="space-y-4 animate-fadeIn">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-black text-slate-900">Choose Payment</h2>
-                <p className="text-xs text-slate-500">
-                  Pay instantly with UPI or pay cash at the store counter.
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">Choose Payment</h2>
+                <p className="text-xs text-slate-500 font-medium">
+                  Pay instantly via UPI or pay cash at the store counter.
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setStep(3)}
-                className="text-xs text-indigo-600 font-bold hover:underline"
+                onClick={() => setStep(4)}
+                className="text-xs text-indigo-600 font-extrabold hover:underline"
               >
-                Edit Settings
+                Back to Preview
               </button>
             </div>
 
@@ -395,8 +505,8 @@ function PrintWizardContent() {
           </div>
         )}
 
-        {/* SCREEN 5: REALTIME CONFIRMATION TRACKER */}
-        {step === 5 && activeJob && (
+        {/* SCREEN 6: REALTIME CONFIRMATION TRACKER */}
+        {step === 6 && activeJob && (
           <LiveTracker
             job={activeJob}
             customerToken={customerToken}

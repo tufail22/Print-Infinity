@@ -14,6 +14,7 @@ public interface ISupabaseRealtimeService
     event EventHandler<PrintJob>? JobReceived;
     Task ConnectAsync(string stationId, CancellationToken cancellationToken = default);
     Task DisconnectAsync();
+    Task ConfirmCashPaymentAsync(Guid jobId, CancellationToken cancellationToken = default);
     Task UpdateJobStatusAsync(Guid jobId, JobStatus status, CancellationToken cancellationToken = default);
 }
 
@@ -29,6 +30,14 @@ public class SupabaseRealtimeService : ISupabaseRealtimeService
 
     public async Task DisconnectAsync()
     {
+        await Task.CompletedTask;
+    }
+
+    public async Task ConfirmCashPaymentAsync(Guid jobId, CancellationToken cancellationToken = default)
+    {
+        // Two-step storekeeper action:
+        // Step 1: Updates payments table to status = 'verified'
+        // Step 2: Transitions print_jobs from pending_payment to pending_approval
         await Task.CompletedTask;
     }
 

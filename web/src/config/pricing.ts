@@ -6,7 +6,7 @@ export interface PricingConfig {
   currencySymbol: string;
   currencyCode: string;
   rates: {
-    bwPerPage: number;       // ₹2.00 per B&W page
+    bwPerPage: number;       // ₹3.00 per B&W page
     colorPerPage: number;    // ₹10.00 per Color page
   };
   paperSizeMultipliers: Record<string, number>;
@@ -18,7 +18,7 @@ export const DEFAULT_PRICING_CONFIG: PricingConfig = {
   currencySymbol: "₹",
   currencyCode: "INR",
   rates: {
-    bwPerPage: 2.0,
+    bwPerPage: 3.0,
     colorPerPage: 10.0,
   },
   paperSizeMultipliers: {

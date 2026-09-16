@@ -29,11 +29,24 @@ export interface CustomPaperSize {
   unit: "cm" | "inch";
 }
 
+export type PhotoSize =
+  | "Full page"
+  | "8 x 10 in."
+  | "5 x 7 in."
+  | "4 x 6 in."
+  | "100 x 148 mm (Hagaki)"
+  | "3.5 x 5 in."
+  | "2 x 3 in. (Wallet)"
+  | "6 x 8 cm (Wallet)"
+  | "Custom Size";
+
 export interface DetailedPrintSettings {
   colorMode: ColorMode;
   copies: number;
   paperSize: string;
   customPaperSize?: CustomPaperSize;
+  photoSize?: PhotoSize;
+  customPhotoSize?: CustomPaperSize;
   orientation: Orientation;
   duplex: boolean;
   duplexEdge?: "long" | "short";
