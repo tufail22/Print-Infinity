@@ -1,10 +1,12 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { getOrCreateCustomerToken } from "./tokenManager";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "http://127.0.0.1:54321";
+const supabaseUrl =
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://ynfjuqqkrqgimttpgumx.supabase.co";
 const supabaseAnonKey =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  "sb_publishable_9oCehcE94-agTcP3DPz9dw_kKe_OCYd";
 
 // Standard client
 export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey);
