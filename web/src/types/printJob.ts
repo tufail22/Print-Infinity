@@ -12,7 +12,8 @@ export type JobStatus =
   | "rejected"
   | "printing"
   | "completed"
-  | "expired";
+  | "expired"
+  | "failed";
 
 export type ColorMode = "color" | "bw";
 export type Orientation = "portrait" | "landscape";

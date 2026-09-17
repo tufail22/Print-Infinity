@@ -116,6 +116,7 @@ export const LiveTracker: React.FC<LiveTrackerProps> = ({
   const currentIndex = getStageIndex(job.status);
   const isRejected = job.status === "rejected";
   const isExpired = job.status === "expired";
+  const isFailed = job.status === "failed";
 
   return (
     <div className="w-full space-y-5 pb-8 animate-fadeIn">
@@ -144,6 +145,19 @@ export const LiveTracker: React.FC<LiveTrackerProps> = ({
           <p className="text-xs text-amber-700 font-medium leading-relaxed">
             For Cash: Please hand cash to the storekeeper at the counter.
             For UPI: Waiting for Razorpay bank verification webhook.
+          </p>
+        </div>
+      )}
+
+      {/* Hardware Print Failed Notice */}
+      {isFailed && (
+        <div className="glass-panel p-4 rounded-3xl bg-rose-50/90 border border-rose-200 text-rose-800 space-y-1 shadow-sm animate-fadeIn">
+          <div className="flex items-center gap-2 font-bold text-xs">
+            <AlertCircle className="w-4 h-4 text-rose-600" />
+            <span>Hardware Printing Issue</span>
+          </div>
+          <p className="text-xs text-rose-700 font-medium">
+            {job.rejection_reason || "A printer hardware or spooler issue occurred. Please consult the shop counter."}
           </p>
         </div>
       )}

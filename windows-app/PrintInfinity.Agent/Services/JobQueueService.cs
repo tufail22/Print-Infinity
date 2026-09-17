@@ -132,7 +132,8 @@ public class JobQueueService : IJobQueueService
         try
         {
             var response = await _authService.Client.From<PrintJobRecord>()
-                .Where(x => x.StoreId == storeId && x.Status == "pending_approval")
+                .Where(x => x.StoreId == storeId)
+                .Where(x => x.Status == "pending_approval")
                 .Get();
 
             var records = response.Models;

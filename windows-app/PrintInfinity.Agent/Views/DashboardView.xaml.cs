@@ -28,6 +28,10 @@ public sealed partial class DashboardView : UserControl
         this.InitializeComponent();
 
         PrinterSetupControl.ViewModel = PrinterSetupVm;
+        this.Loaded += (s, e) =>
+        {
+            QueueVm.XamlRoot = this.XamlRoot;
+        };
     }
 
     private void OnViewSelectionChanged(object sender, SelectionChangedEventArgs e)

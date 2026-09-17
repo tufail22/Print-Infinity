@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -13,9 +14,12 @@ namespace PrintInfinity.Agent.ViewModels;
 public partial class LiveQueueViewModel : ObservableObject, IDisposable
 {
     private readonly IJobQueueService _queueService;
+    private readonly IPrintPipelineService _printPipelineService;
     private readonly ISystemTrayService _systemTrayService;
     private readonly DispatcherQueue? _dispatcherQueue;
     private Guid _storeId;
+
+    public Microsoft.UI.Xaml.XamlRoot? XamlRoot { get; set; }
 
     public ObservableCollection<QueueItem> PendingJobs { get; } = new();
     public ObservableCollection<AuditLogEntry> AuditLogs { get; } = new();
@@ -42,14 +46,34 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
 
     public bool HasNotification => !string.IsNullOrWhiteSpace(NotificationMessage);
 
-    public LiveQueueViewModel(IJobQueueService queueService, ISystemTrayService systemTrayService)
+    public LiveQueueViewModel(
+        IJobQueueService queueService,
+        IPrintPipelineService printPipelineService,
+        ISystemTrayService systemTrayService)
     {
         _queueService = queueService;
+        _printPipelineService = printPipelineService;
         _systemTrayService = systemTrayService;
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
 
         _queueService.JobArrived += OnJobArrived;
         _queueService.JobRemoved += OnJobRemoved;
+
+        _printPipelineService.PipelineEventOccurred += (s, e) =>
+        {
+            _dispatcherQueue?.TryEnqueue(() =>
+            {
+                NotificationMessage = e.Message;
+            });
+        };
+
+        _printPipelineService.AuditLogGenerated += (s, log) =>
+        {
+            _dispatcherQueue?.TryEnqueue(() =>
+            {
+                AuditLogs.Insert(0, log);
+            });
+        };
     }
 
     public async Task StartAsync(Guid storeId)
@@ -100,32 +124,50 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
         if (job == null) return;
 
         job.IsApproving = true;
-        NotificationMessage = string.Empty;
+        NotificationMessage = $"Queued job ({job.FormattedPrice}) for print pipeline...";
 
-        var success = await _queueService.ApproveJobAsync(job.Id);
-        if (success)
+        PendingJobs.Remove(job);
+        JobCount = PendingJobs.Count;
+
+        await _printPipelineService.EnqueueJobAsync(job, PromptPrinterSelectionAsync);
+    }
+
+    public async Task<PrinterItem?> PromptPrinterSelectionAsync(List<PrinterItem> candidates)
+    {
+        if (_dispatcherQueue == null || XamlRoot == null)
         {
-            PendingJobs.Remove(job);
-            JobCount = PendingJobs.Count;
+            return candidates.FirstOrDefault();
+        }
 
-            // Log strictly text metadata
-            AuditLogs.Insert(0, new AuditLogEntry
+        var tcs = new TaskCompletionSource<PrinterItem?>();
+
+        _dispatcherQueue.TryEnqueue(async () =>
+        {
+            try
             {
-                Timestamp = DateTime.UtcNow,
-                Status = "Approved",
-                PageCount = job.PageCount,
-                Copies = job.Copies,
-                ColorMode = job.ColorMode,
-                Details = $"Approved for {job.PaperSize} print"
-            });
+                var dialog = new Views.PrinterSelectionDialog(candidates)
+                {
+                    XamlRoot = XamlRoot
+                };
 
-            NotificationMessage = $"✓ Job approved ({job.FormattedPrice}). Ready for spooler stream.";
-        }
-        else
-        {
-            NotificationMessage = "Failed to approve job. Check internet connection.";
-            job.IsApproving = false;
-        }
+                var result = await dialog.ShowAsync();
+                if (result == Microsoft.UI.Xaml.Controls.ContentDialogResult.Primary)
+                {
+                    tcs.TrySetResult(dialog.SelectedPrinter);
+                }
+                else
+                {
+                    tcs.TrySetResult(null);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Printer selection dialog notice: {ex.Message}");
+                tcs.TrySetResult(candidates.FirstOrDefault());
+            }
+        });
+
+        return await tcs.Task;
     }
 
     public async Task RejectJobWithReasonAsync(QueueItem job, string reason)
@@ -164,5 +206,6 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
         _queueService.JobArrived -= OnJobArrived;
         _queueService.JobRemoved -= OnJobRemoved;
         _queueService.Dispose();
+        _printPipelineService.Dispose();
     }
 }

@@ -1,6 +1,7 @@
 using System;
 using Microsoft.UI.Xaml;
 using PrintInfinity.Agent.Services;
+using PrintInfinity.Agent.Services.Printing;
 using PrintInfinity.Agent.ViewModels;
 using PrintInfinity.Agent.Views;
 
@@ -17,6 +18,9 @@ public sealed partial class MainWindow : Window
     private readonly IPrinterSyncService _printerSyncService;
     private readonly IJobQueueService _jobQueueService;
     private readonly ISystemTrayService _systemTrayService;
+    private readonly IPrintEngine _printEngine;
+    private readonly IPrintSpoolerMonitor _spoolerMonitor;
+    private readonly IPrintPipelineService _printPipelineService;
 
     public MainWindow()
     {
@@ -28,6 +32,9 @@ public sealed partial class MainWindow : Window
         _printerSyncService = new PrinterSyncService(_authService);
         _systemTrayService = new SystemTrayService();
         _jobQueueService = new JobQueueService(_authService);
+        _printEngine = new Services.Printing.WindowsPrintEngine();
+        _spoolerMonitor = new Services.Printing.PrintSpoolerMonitor();
+        _printPipelineService = new PrintPipelineService(_authService, _printEngine, _spoolerMonitor, _systemTrayService);
 
         // Initialize native system tray icon and background persistence
         _systemTrayService.Initialize(this);
@@ -81,7 +88,7 @@ public sealed partial class MainWindow : Window
 
     private void NavigateToDashboard()
     {
-        var queueVm = new LiveQueueViewModel(_jobQueueService, _systemTrayService);
+        var queueVm = new LiveQueueViewModel(_jobQueueService, _printPipelineService, _systemTrayService);
         var setupVm = new PrinterSetupViewModel(_authService, _windowsPrinterService, _printerSyncService);
         var dashboardView = new DashboardView(queueVm, setupVm, _systemTrayService);
 
