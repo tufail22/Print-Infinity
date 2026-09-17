@@ -6,8 +6,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "http://127.0.0.1:54321";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const RAZORPAY_WEBHOOK_SECRET =
   Deno.env.get("RAZORPAY_WEBHOOK_SECRET") ||
-  Deno.env.get("RAZORPAY_KEY_SECRET") ||
-  "yC20q4MkWU01wF6H05gXN9Bq";
+  Deno.env.get("RAZORPAY_KEY_SECRET");
 
 /**
  * Constant-time comparison between two hex strings to prevent timing attacks.

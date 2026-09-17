@@ -8,11 +8,16 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const RAZORPAY_WEBHOOK_SECRET = (
   process.env.RAZORPAY_WEBHOOK_SECRET ||
   process.env.RAZORPAY_KEY_SECRET ||
-  "yC20q4MkWU01wF6H05gXN9Bq"
+  ""
 ).trim();
 
 export async function POST(req: NextRequest) {
   try {
+    if (!RAZORPAY_WEBHOOK_SECRET) {
+      console.error("[webhook] Webhook secret not configured on server");
+      return NextResponse.json({ error: "Webhook secret not configured on server" }, { status: 500 });
+    }
+
     const rawBody = await req.text();
     const signature = req.headers.get("x-razorpay-signature");
 
@@ -26,11 +31,6 @@ export async function POST(req: NextRequest) {
       .createHmac("sha256", RAZORPAY_WEBHOOK_SECRET)
       .update(rawBody)
       .digest("hex");
-
-    console.log(`[webhook debug] received: ${signature}`);
-    console.log(`[webhook debug] expected: ${expectedSignature}`);
-    console.log(`[webhook debug] secret: ${RAZORPAY_WEBHOOK_SECRET} (len: ${RAZORPAY_WEBHOOK_SECRET.length})`);
-    console.log(`[webhook debug] rawBody len: ${rawBody?.length}`);
 
     if (
       signature.length !== expectedSignature.length ||

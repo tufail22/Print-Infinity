@@ -2,10 +2,10 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "http://127.0.0.1:54321";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const RAZORPAY_KEY_ID = Deno.env.get("RAZORPAY_KEY_ID") ?? "rzp_test_TcLIwOOu4oYli5";
-const RAZORPAY_KEY_SECRET = Deno.env.get("RAZORPAY_KEY_SECRET") ?? "yC20q4MkWU01wF6H05gXN9Bq";
+const RAZORPAY_KEY_ID = (Deno.env.get("RAZORPAY_KEY_ID") ?? "").trim();
+const RAZORPAY_KEY_SECRET = (Deno.env.get("RAZORPAY_KEY_SECRET") ?? "").trim();
 
 // In-memory sliding-window IP rate limiter
 // Max 5 orders per 60 seconds per IP
@@ -115,6 +115,14 @@ serve(async (req) => {
     }
 
     // 3. Create Razorpay Order server-side (secret key stays on server)
+    if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
+      console.error("[create-razorpay-order] Razorpay credentials missing from server environment");
+      return new Response(
+        JSON.stringify({ error: "Payment gateway credentials not configured on server" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      );
+    }
+
     const amountInPaise = Math.round(Number(amount) * 100);
     const authHeader = "Basic " + btoa(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`);
 

@@ -4,8 +4,8 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL =
   process.env.NEXT_PUBLIC_SUPABASE_URL || "https://ynfjuqqkrqgimttpgumx.supabase.co";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-const RAZORPAY_KEY_ID = (process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_TcLIwOOu4oYli5").trim();
-const RAZORPAY_KEY_SECRET = (process.env.RAZORPAY_KEY_SECRET || "yC20q4MkWU01wF6H05gXN9Bq").trim();
+const RAZORPAY_KEY_ID = (process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || "").trim();
+const RAZORPAY_KEY_SECRET = (process.env.RAZORPAY_KEY_SECRET || "").trim();
 
 // In-memory sliding-window IP rate limiter
 interface RateLimitEntry {
@@ -83,6 +83,14 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Create Razorpay Order via Server-Side REST API
+    if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
+      console.error("[create-order] Razorpay credentials missing from server environment");
+      return NextResponse.json(
+        { error: "Payment gateway credentials not configured on server" },
+        { status: 500 }
+      );
+    }
+
     const amountInPaise = Math.round(Number(amount) * 100);
     const authHeader = "Basic " + Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64");
 

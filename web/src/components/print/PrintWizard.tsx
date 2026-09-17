@@ -170,41 +170,72 @@ function PrintWizardContent() {
 
       // Storage expires in 15 minutes
       const storageExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      const paperSizeVal = settings.photoSize ? settings.photoSize : settings.paperSize;
 
-      // 2. Insert print_job row with unique jobToken
-      // CRITICAL SECURITY: Status is ALWAYS pending_payment initially.
-      // Never trust client-side messages to set verified or approved.
-      const { data: jobData, error: jobError } = await scopedClient
-        .from("print_jobs")
-        .insert({
-          store_id: store.id,
-          status: "pending_payment",
-          color_mode: settings.colorMode,
-          copies: settings.copies,
-          paper_size: settings.photoSize ? settings.photoSize : settings.paperSize,
-          duplex: settings.duplex,
-          storage_path: storagePath,
-          storage_expires_at: storageExpiresAt,
-          customer_token: jobToken,
-        })
-        .select()
-        .single();
+      // 2. Submit via validated, rate-limited server endpoint
+      let jobData: any = null;
+      try {
+        const createRes = await fetch("/api/print-jobs/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            store_id: store.id,
+            color_mode: settings.colorMode,
+            copies: settings.copies,
+            paper_size: paperSizeVal,
+            duplex: settings.duplex,
+            storage_path: storagePath,
+            customer_token: jobToken,
+            page_count: totalPages,
+            method: method,
+            amount: priceBreakdown.total,
+            gateway_ref: gatewayRef || (method === "cash" ? "CASH_COUNTER" : "RAZORPAY_INIT"),
+          }),
+        });
 
-      if (jobError || !jobData) {
-        throw new Error(jobError?.message || "Failed to create print job record");
-      }
+        if (createRes.status === 429) {
+          throw new Error("Too many print requests. Please wait a moment before trying again.");
+        }
 
-      // 3. Insert payment row with status 'pending'
-      const { error: paymentError } = await scopedClient.from("payments").insert({
-        print_job_id: jobData.id,
-        method: method,
-        amount: priceBreakdown.total,
-        status: "pending",
-        gateway_ref: gatewayRef || (method === "cash" ? "CASH_COUNTER" : "RAZORPAY_INIT"),
-      });
+        const createJson = await createRes.json();
+        if (!createRes.ok || !createJson.job) {
+          throw new Error(createJson.error || "Failed to create print job via server");
+        }
+        jobData = createJson.job;
+      } catch (serverErr: any) {
+        if (serverErr.message?.includes("Too many")) {
+          throw serverErr;
+        }
+        console.warn("Server job creation notice, trying direct client insert:", serverErr);
+        // Resilient fallback to direct Supabase client (secured by DB RLS & triggers)
+        const { data: directJob, error: jobError } = await scopedClient
+          .from("print_jobs")
+          .insert({
+            store_id: store.id,
+            status: "pending_payment",
+            color_mode: settings.colorMode,
+            copies: settings.copies,
+            paper_size: paperSizeVal,
+            duplex: settings.duplex,
+            storage_path: storagePath,
+            storage_expires_at: storageExpiresAt,
+            customer_token: jobToken,
+          })
+          .select()
+          .single();
 
-      if (paymentError) {
-        console.warn("Payment insert notice:", paymentError);
+        if (jobError || !directJob) {
+          throw new Error(jobError?.message || "Failed to create print job record");
+        }
+        jobData = directJob;
+
+        await scopedClient.from("payments").insert({
+          print_job_id: jobData.id,
+          method: method,
+          amount: priceBreakdown.total,
+          status: "pending",
+          gateway_ref: gatewayRef || (method === "cash" ? "CASH_COUNTER" : "RAZORPAY_INIT"),
+        });
       }
 
       // 4. For UPI: Create Razorpay Order via server-side API and launch Razorpay Checkout
