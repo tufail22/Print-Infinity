@@ -188,10 +188,14 @@
 
                                         <!-- Two Action Buttons: Approve & Reject -->
                                         <StackPanel Grid.Column="2" Spacing="8" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                            <!-- Approve Button -->
+                                            <!-- Approve Button (Key: Enter / Alt+A) -->
                                             <Button Style="{ThemeResource AccentButtonStyle}"
                                                     HorizontalAlignment="Stretch"
                                                     Height="38"
+                                                    IsTabStop="True"
+                                                    AccessKey="A"
+                                                    AutomationProperties.Name="Approve and print job"
+                                                    AutomationProperties.HelpText="Approves this print job and starts printing immediately"
                                                     Click="OnApproveJobClick"
                                                     DataContext="{x:Bind}">
                                                 <StackPanel Orientation="Horizontal" Spacing="6">
@@ -201,10 +205,14 @@
                                                 </StackPanel>
                                             </Button>
 
-                                            <!-- Reject Button (Requires reason) -->
+                                            <!-- Reject Button (Alt+R) -->
                                             <Button HorizontalAlignment="Stretch"
                                                     Height="36"
                                                     Foreground="#DC2626"
+                                                    IsTabStop="True"
+                                                    AccessKey="R"
+                                                    AutomationProperties.Name="Reject print job"
+                                                    AutomationProperties.HelpText="Rejects this print job and allows entering a cancellation reason"
                                                     Click="OnRejectJobClick"
                                                     DataContext="{x:Bind}">
                                                 <StackPanel Orientation="Horizontal" Spacing="6">

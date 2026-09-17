@@ -98,9 +98,13 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
         pages = await getPdfPageCount(file);
       }
 
-      // Preview URL for images
+      // Preview URL for images and PDFs
       let previewUrl: string | undefined = undefined;
-      if (file.type.startsWith("image/")) {
+      if (
+        file.type.startsWith("image/") ||
+        file.type === "application/pdf" ||
+        lowerName.endsWith(".pdf")
+      ) {
         previewUrl = URL.createObjectURL(file);
       }
 
@@ -228,13 +232,18 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
 
       {/* Error Message */}
       {errorMessage && (
-        <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-rose-50/90 border border-rose-200 text-rose-800 text-xs shadow-sm animate-shake">
-          <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-rose-50/90 border border-rose-200 text-rose-800 text-xs shadow-sm animate-shake"
+        >
+          <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" aria-hidden="true" />
           <p className="flex-1 font-medium">{errorMessage}</p>
           <button
             type="button"
             onClick={() => setErrorMessage(null)}
-            className="text-rose-500 hover:text-rose-700 font-bold px-1"
+            aria-label="Dismiss error message"
+            className="min-h-[44px] min-w-[44px] -my-2 -mr-2 flex items-center justify-center text-rose-600 hover:text-rose-800 font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 rounded-lg"
           >
             ✕
           </button>
@@ -302,10 +311,10 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
                     e.stopPropagation();
                     removeFile(item.id);
                   }}
-                  aria-label={`Remove ${item.name}`}
-                  className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-rose-400"
+                  aria-label={`Remove file ${item.name}`}
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-4 h-4" aria-hidden="true" />
                 </button>
               )}
 
@@ -326,9 +335,10 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-full py-2.5 px-3 rounded-xl border border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-50/50 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+              aria-label="Add another document to print"
+              className="min-h-[44px] w-full py-3 px-4 rounded-xl border-2 border-dashed border-indigo-200 text-indigo-700 hover:bg-indigo-50/70 hover:border-indigo-400 text-xs font-bold flex items-center justify-center gap-2 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
             >
-              <FilePlus className="w-4 h-4" />
+              <FilePlus className="w-4 h-4 text-indigo-600" aria-hidden="true" />
               <span>Add Another Document</span>
             </button>
           )}

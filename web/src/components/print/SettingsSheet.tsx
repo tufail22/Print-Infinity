@@ -273,14 +273,15 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
                   key={size.id}
                   type="button"
                   onClick={() => handleUpdate({ photoSize: size.id })}
-                  className={`p-2.5 rounded-2xl border text-left transition-all ${
+                  aria-label={`Select photo size ${size.label}: ${size.desc}`}
+                  className={`min-h-[44px] p-2.5 rounded-2xl border text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 ${
                     isSelected
                       ? "border-indigo-600 bg-indigo-50/90 text-indigo-900 font-extrabold shadow-sm ring-1 ring-indigo-500"
                       : "glass-panel border-slate-200/80 text-slate-700 hover:border-slate-300"
                   }`}
                 >
                   <div className="text-xs font-bold truncate">{size.label}</div>
-                  <div className="text-[10px] text-slate-500 truncate">{size.desc}</div>
+                  <div className="text-[10px] text-slate-600 truncate">{size.desc}</div>
                 </button>
               );
             })}
@@ -400,18 +401,18 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
             onClick={() => handleUpdate({ copies: Math.max(1, settings.copies - 1) })}
             disabled={settings.copies <= 1}
             aria-label="Decrease copies"
-            className="w-8 h-8 rounded-xl bg-white disabled:opacity-40 text-slate-700 font-black shadow-xs flex items-center justify-center active:scale-95 transition-all text-sm"
+            className="min-h-[44px] min-w-[44px] rounded-xl bg-white disabled:opacity-40 text-slate-800 font-black shadow-xs flex items-center justify-center active:scale-95 transition-all text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
           >
             -
           </button>
-          <span className="w-8 text-center font-black text-sm text-slate-800">
+          <span className="w-8 text-center font-black text-sm text-slate-900" aria-live="polite">
             {settings.copies}
           </span>
           <button
             type="button"
             onClick={() => handleUpdate({ copies: settings.copies + 1 })}
             aria-label="Increase copies"
-            className="w-8 h-8 rounded-xl bg-white text-slate-700 font-black shadow-xs flex items-center justify-center active:scale-95 transition-all text-sm"
+            className="min-h-[44px] min-w-[44px] rounded-xl bg-white text-slate-800 font-black shadow-xs flex items-center justify-center active:scale-95 transition-all text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
           >
             +
           </button>
@@ -431,14 +432,15 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
                 key={size.id}
                 type="button"
                 onClick={() => handleUpdate({ paperSize: size.id })}
-                className={`p-2.5 rounded-2xl border text-left transition-all ${
+                aria-label={`Select paper size ${size.label}: ${size.desc}`}
+                className={`min-h-[44px] p-2.5 rounded-2xl border text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 ${
                   isSelected
                     ? "border-indigo-600 bg-indigo-50/90 text-indigo-900 font-extrabold shadow-sm ring-1 ring-indigo-500"
                     : "glass-panel border-slate-200/80 text-slate-700 hover:border-slate-300"
                 }`}
               >
                 <div className="text-xs font-bold">{size.label}</div>
-                <div className="text-[10px] text-slate-500 truncate">{size.desc}</div>
+                <div className="text-[10px] text-slate-600 truncate">{size.desc}</div>
               </button>
             );
           })}

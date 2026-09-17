@@ -25,7 +25,7 @@ import {
   PrintJobRecord,
   PaymentMethod,
 } from "@/types/printJob";
-import { calculateEstimatedPrice } from "@/config/pricing";
+import { calculateEstimatedPrice, getPricingConfigForStore } from "@/config/pricing";
 import { getOrCreateCustomerToken, rotateCustomerToken } from "@/lib/tokenManager";
 import { getCustomerSupabaseClient, supabase } from "@/lib/supabaseClient";
 
@@ -82,15 +82,19 @@ function PrintWizardContent() {
 
   // Calculate total pages across uploaded files
   const totalPages = files.reduce((sum, f) => sum + f.totalPages, 0) || 1;
-  const priceBreakdown = calculateEstimatedPrice({
-    totalPages,
-    copies: settings.copies,
-    colorMode: settings.colorMode,
-    paperSize: settings.paperSize,
-    duplex: settings.duplex,
-    quality: settings.quality,
-    pagesPerSheet: settings.pagesPerSheet,
-  });
+  const pricingConfig = getPricingConfigForStore(store);
+  const priceBreakdown = calculateEstimatedPrice(
+    {
+      totalPages,
+      copies: settings.copies,
+      colorMode: settings.colorMode,
+      paperSize: settings.paperSize,
+      duplex: settings.duplex,
+      quality: settings.quality,
+      pagesPerSheet: settings.pagesPerSheet,
+    },
+    pricingConfig
+  );
 
   // Initialize customer token & load store metadata
   useEffect(() => {
@@ -105,7 +109,7 @@ function PrintWizardContent() {
         if (!targetStoreId) {
           const { data } = await supabase
             .from("stores")
-            .select("id, name, address, active")
+            .select("id, name, address, active, logo_url, bw_price_per_page, color_price_per_page")
             .eq("active", true)
             .limit(1);
 
@@ -119,12 +123,14 @@ function PrintWizardContent() {
               name: "Print Infinity Flagship",
               address: "Shop 12, Retail Arcade, Commercial Center",
               active: true,
+              bw_price_per_page: 3.0,
+              color_price_per_page: 10.0,
             });
           }
         } else {
           const { data } = await supabase
             .from("stores")
-            .select("id, name, address, active")
+            .select("id, name, address, active, logo_url, bw_price_per_page, color_price_per_page")
             .eq("id", targetStoreId)
             .single();
 
@@ -496,6 +502,7 @@ function PrintWizardContent() {
             files={files}
             settings={settings}
             totalPages={totalPages}
+            store={store}
             onProceedToPayment={() => setStep(5)}
             onBackToSettings={() => setStep(3)}
           />

@@ -111,15 +111,15 @@ public class PrintPipelineService : IPrintPipelineService
             if (matchingPrinters.Count == 0)
             {
                 var modeTitle = targetMode == "color" ? "Color" : "Black & White";
-                var errorMsg = $"No online {modeTitle} printer configured";
+                var friendlyError = $"No online {modeTitle} printer found. Please check that your printer is turned on, has paper, and is connected to this PC.";
                 
                 jobResponse.Status = "failed";
-                jobResponse.RejectionReason = errorMsg;
+                jobResponse.RejectionReason = friendlyError;
                 jobResponse.UpdatedAt = DateTime.UtcNow;
                 await _authService.Client.From<PrintJobRecord>().Update(jobResponse);
 
-                NotifyEvent(jobId, "Failed", errorMsg, isError: true);
-                _systemTrayService.ShowNotification("Print Stopped", errorMsg);
+                NotifyEvent(jobId, "Failed", friendlyError, isError: true);
+                _systemTrayService.ShowNotification("Printer Offline", friendlyError);
                 return;
             }
             else if (matchingPrinters.Count == 1)
@@ -222,14 +222,14 @@ public class PrintPipelineService : IPrintPipelineService
 
             if (!spoolerResult.Success)
             {
-                var failReason = spoolerResult.ErrorReason ?? "Print Spooler encountered a hardware error.";
+                var friendlySpoolerError = "Could not finish printing. Please check that your printer has paper, is not jammed, and has sufficient ink.";
                 jobResponse.Status = "failed";
-                jobResponse.RejectionReason = failReason;
+                jobResponse.RejectionReason = friendlySpoolerError;
                 jobResponse.UpdatedAt = DateTime.UtcNow;
                 await _authService.Client.From<PrintJobRecord>().Update(jobResponse);
 
-                NotifyEvent(jobId, "Failed", failReason, isError: true);
-                _systemTrayService.ShowNotification("Print Failed", failReason);
+                NotifyEvent(jobId, "Failed", friendlySpoolerError, isError: true);
+                _systemTrayService.ShowNotification("Print Stopped", friendlySpoolerError);
                 return;
             }
 
@@ -271,6 +271,7 @@ public class PrintPipelineService : IPrintPipelineService
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[PrintPipeline] Error processing job {jobId}: {ex.Message}");
+            var friendlyExError = "Unable to process document for printing. Please check your internet connection and printer cable/Wi-Fi.";
             
             try
             {
@@ -278,7 +279,7 @@ public class PrintPipelineService : IPrintPipelineService
                 if (failRecord != null)
                 {
                     failRecord.Status = "failed";
-                    failRecord.RejectionReason = $"Pipeline error: {ex.Message}";
+                    failRecord.RejectionReason = friendlyExError;
                     failRecord.UpdatedAt = DateTime.UtcNow;
                     await _authService.Client.From<PrintJobRecord>().Update(failRecord);
                 }
@@ -288,8 +289,8 @@ public class PrintPipelineService : IPrintPipelineService
                 // Suppress secondary update failure
             }
 
-            NotifyEvent(jobId, "Failed", $"Pipeline error: {ex.Message}", isError: true);
-            _systemTrayService.ShowNotification("Print Pipeline Error", ex.Message);
+            NotifyEvent(jobId, "Failed", friendlyExError, isError: true);
+            _systemTrayService.ShowNotification("Print Error", friendlyExError);
         }
         finally
         {

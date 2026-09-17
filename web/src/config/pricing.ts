@@ -40,6 +40,17 @@ export const DEFAULT_PRICING_CONFIG: PricingConfig = {
   duplexDiscountPercent: 10,
 };
 
+export function getPricingConfigForStore(store?: { bw_price_per_page?: number | null; color_price_per_page?: number | null } | null): PricingConfig {
+  if (!store) return DEFAULT_PRICING_CONFIG;
+  return {
+    ...DEFAULT_PRICING_CONFIG,
+    rates: {
+      bwPerPage: store.bw_price_per_page != null ? Number(store.bw_price_per_page) : 3.0,
+      colorPerPage: store.color_price_per_page != null ? Number(store.color_price_per_page) : 10.0,
+    },
+  };
+}
+
 export interface PriceCalculationParams {
   totalPages: number;
   copies: number;

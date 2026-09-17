@@ -35,12 +35,14 @@ export const StoreHeader: React.FC<StoreHeaderProps> = ({
             <div className="relative flex-shrink-0">
               <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-md shadow-indigo-500/15 bg-black border border-white/40 flex items-center justify-center group-hover:scale-105 transition-transform">
                 <img
-                  src="/logo.png"
-                  alt="Print Infinity Logo"
+                  src={store?.logo_url || "/logo.png"}
+                  alt={`${store?.name || "Print Infinity"} Logo`}
                   className="w-full h-full object-contain"
+                  loading="lazy"
+                  decoding="async"
                 />
               </div>
-              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></span>
+              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full" aria-hidden="true"></span>
             </div>
 
             <div className="min-w-0">
@@ -80,7 +82,8 @@ export const StoreHeader: React.FC<StoreHeaderProps> = ({
                     type="button"
                     disabled={!canClick}
                     onClick={() => canClick && onStepClick(step.num)}
-                    className={`flex items-center gap-1 text-xs font-medium transition-all ${
+                    aria-label={`Step ${step.num}: ${step.label}${isCurrent ? " (Current)" : isPassed ? " (Completed)" : ""}`}
+                    className={`min-h-[44px] flex items-center gap-1.5 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 rounded-lg px-1 ${
                       isCurrent
                         ? "text-indigo-600 font-bold"
                         : isPassed

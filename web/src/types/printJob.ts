@@ -83,6 +83,9 @@ export interface StoreInfo {
   name: string;
   address?: string;
   active: boolean;
+  logo_url?: string | null;
+  bw_price_per_page?: number;
+  color_price_per_page?: number;
 }
 
 export interface PrintJobRecord {

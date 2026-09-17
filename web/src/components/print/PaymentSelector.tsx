@@ -95,31 +95,32 @@ export const PaymentSelector: React.FC<PaymentSelectorProps> = ({
         <button
           type="button"
           onClick={() => onSelectMethod("upi")}
-          className={`glass-panel-interactive relative p-5 rounded-3xl text-left focus:outline-none focus:ring-4 focus:ring-indigo-100 ${
+          aria-label="Select Pay with UPI (Instant Auto-Dispatch)"
+          className={`glass-panel-interactive relative p-5 rounded-3xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 ${
             selectedMethod === "upi"
               ? "border-indigo-600 bg-white/95 shadow-xl ring-2 ring-indigo-500/30"
               : "border-slate-200 hover:border-slate-300"
           }`}
         >
           {selectedMethod === "upi" && (
-            <div className="absolute top-4 right-4 w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs shadow-xs font-bold">
+            <div className="absolute top-4 right-4 w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs shadow-xs font-bold" aria-hidden="true">
               <Check className="w-3.5 h-3.5" />
             </div>
           )}
 
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 mb-3">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 mb-3" aria-hidden="true">
             <QrCode className="w-6 h-6" />
           </div>
 
           <h3 className="font-extrabold text-sm text-slate-900 tracking-tight">
             Pay with UPI
           </h3>
-          <p className="text-xs text-slate-500 mt-1 font-medium">
+          <p className="text-xs text-slate-600 mt-1 font-medium">
             Scan with GPay, PhonePe, Paytm or any UPI App
           </p>
 
           <div className="mt-3 inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
-            <Zap className="w-3 h-3 text-amber-500" />
+            <Zap className="w-3 h-3 text-amber-500" aria-hidden="true" />
             <span>Instant Auto-Dispatch</span>
           </div>
         </button>
@@ -128,7 +129,8 @@ export const PaymentSelector: React.FC<PaymentSelectorProps> = ({
         <button
           type="button"
           onClick={() => onSelectMethod("cash")}
-          className={`glass-panel-interactive relative p-5 rounded-3xl text-left focus:outline-none focus:ring-4 focus:ring-emerald-100 ${
+          aria-label="Select Pay with Cash at Store Counter"
+          className={`glass-panel-interactive relative p-5 rounded-3xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 ${
             selectedMethod === "cash"
               ? "border-emerald-600 bg-white/95 shadow-xl ring-2 ring-emerald-500/30"
               : "border-slate-200 hover:border-slate-300"
