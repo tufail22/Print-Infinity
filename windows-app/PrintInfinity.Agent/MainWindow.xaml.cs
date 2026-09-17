@@ -1,45 +1,62 @@
+using System;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using PrintInfinity.Agent.Models;
 using PrintInfinity.Agent.Services;
 using PrintInfinity.Agent.ViewModels;
+using PrintInfinity.Agent.Views;
 
 namespace PrintInfinity.Agent;
 
 /// <summary>
-/// Main dashboard window for the Storekeeper Print Infinity Agent.
+/// Main window orchestrating Login and Printer Setup for the Storekeeper Agent.
 /// </summary>
 public sealed partial class MainWindow : Window
 {
-    public MainViewModel ViewModel { get; }
+    private readonly ICredentialStorageService _credentialStorage;
+    private readonly ISupabaseAuthService _authService;
+    private readonly IWindowsPrinterService _windowsPrinterService;
+    private readonly IPrinterSyncService _printerSyncService;
 
     public MainWindow()
     {
-        ViewModel = new MainViewModel(new SupabaseRealtimeService(), new PrintStreamService());
         this.InitializeComponent();
+
+        _credentialStorage = new CredentialStorageService();
+        _authService = new SupabaseAuthService(_credentialStorage);
+        _windowsPrinterService = new WindowsPrinterService();
+        _printerSyncService = new PrinterSyncService(_authService);
+
+        NavigateToLogin();
     }
 
-    private async void OnConfirmCashClick(object sender, RoutedEventArgs e)
+    private void NavigateToLogin()
     {
-        if (sender is Button { DataContext: PrintJob job })
+        var loginVm = new LoginViewModel(_authService);
+        var loginView = new LoginView { ViewModel = loginVm };
+
+        loginVm.LoginSucceeded += () =>
         {
-            await ViewModel.ConfirmCashReceivedCommand.ExecuteAsync(job);
-        }
+            NavigateToPrinterSetup();
+        };
+
+        MainContentContainer.Content = loginView;
+
+        // Attempt silent session restore via Windows Credential Locker / DPAPI
+        _ = loginVm.CheckAutoLoginAsync();
     }
 
-    private async void OnApproveClick(object sender, RoutedEventArgs e)
+    private void NavigateToPrinterSetup()
     {
-        if (sender is Button { DataContext: PrintJob job })
-        {
-            await ViewModel.ApproveJobCommand.ExecuteAsync(job);
-        }
-    }
+        var setupVm = new PrinterSetupViewModel(_authService, _windowsPrinterService, _printerSyncService);
+        var setupView = new PrinterSetupView { ViewModel = setupVm };
 
-    private async void OnRejectClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { DataContext: PrintJob job })
+        setupVm.LoggedOut += () =>
         {
-            await ViewModel.RejectJobCommand.ExecuteAsync(job);
-        }
+            NavigateToLogin();
+        };
+
+        MainContentContainer.Content = setupView;
+
+        // Scan installed Windows printers and merge with Supabase cloud records
+        _ = setupVm.InitializeAsync();
     }
 }

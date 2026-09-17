@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -74,7 +75,7 @@ public partial class MainViewModel : ObservableObject
 
         // Stream directly to hardware printer memory (zero-disk)
         job.Status = JobStatus.Printing;
-        await _printStreamService.StreamToPrinterAsync(job.FileUrl, job.Settings.PrinterName);
+        await _printStreamService.StreamToPrinterAsync(Stream.Null, job);
 
         job.Status = JobStatus.Completed;
         StatusMessage = $"Successfully printed {job.FileName}. Document memory cleared.";

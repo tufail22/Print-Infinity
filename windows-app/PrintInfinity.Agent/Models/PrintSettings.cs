@@ -20,4 +20,5 @@ public class PrintSettings
     public DuplexMode Duplex { get; set; } = DuplexMode.SingleSided;
     public string PaperSize { get; set; } = "A4";
     public string? PageRange { get; set; }
+    public string PrinterName { get; set; } = string.Empty;
 }
