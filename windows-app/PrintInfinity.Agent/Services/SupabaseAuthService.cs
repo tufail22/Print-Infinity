@@ -44,7 +44,7 @@ public class SupabaseAuthService : ISupabaseAuthService
         var options = new Supabase.SupabaseOptions
         {
             AutoRefreshToken = true,
-            AutoConnectRealtime = false
+            AutoConnectRealtime = true
         };
 
         _client = new Supabase.Client(AppConfig.SupabaseUrl, AppConfig.SupabaseAnonKey, options);

@@ -1,0 +1,31 @@
+<ContentDialog
+    x:Class="PrintInfinity.Agent.Views.RejectReasonDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Reject Print Job"
+    PrimaryButtonText="Reject Job"
+    CloseButtonText="Cancel"
+    DefaultButton="Primary"
+    PrimaryButtonClick="OnPrimaryButtonClick">
+
+    <StackPanel Spacing="16" Width="380" Margin="0,8,0,0">
+        <TextBlock Text="Please specify a reason for rejecting this job. This reason will be transmitted to the customer's portal."
+                   TextWrapping="Wrap" 
+                   FontSize="13" 
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+
+        <TextBox x:Name="ReasonInput"
+                 Header="Rejection Reason"
+                 PlaceholderText="e.g. Paper out of stock, Unsupported paper size, Unverified payment"
+                 MaxLength="200" />
+
+        <TextBlock x:Name="ErrorText" 
+                   Text="A rejection reason is required." 
+                   Foreground="#EF4444" 
+                   FontSize="12" 
+                   Visibility="Collapsed" />
+    </StackPanel>
+</ContentDialog>

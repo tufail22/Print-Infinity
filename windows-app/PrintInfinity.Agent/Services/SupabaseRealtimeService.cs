@@ -20,7 +20,9 @@ public interface ISupabaseRealtimeService
 
 public class SupabaseRealtimeService : ISupabaseRealtimeService
 {
+#pragma warning disable CS0067
     public event EventHandler<PrintJob>? JobReceived;
+#pragma warning restore CS0067
 
     public async Task ConnectAsync(string stationId, CancellationToken cancellationToken = default)
     {

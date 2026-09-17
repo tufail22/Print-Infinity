@@ -7,7 +7,7 @@ using PrintInfinity.Agent.Views;
 namespace PrintInfinity.Agent;
 
 /// <summary>
-/// Main window orchestrating Login and Printer Setup for the Storekeeper Agent.
+/// Main window orchestrating Login, Live Queue, and Printer Setup with System Tray background persistence.
 /// </summary>
 public sealed partial class MainWindow : Window
 {
@@ -15,6 +15,8 @@ public sealed partial class MainWindow : Window
     private readonly ISupabaseAuthService _authService;
     private readonly IWindowsPrinterService _windowsPrinterService;
     private readonly IPrinterSyncService _printerSyncService;
+    private readonly IJobQueueService _jobQueueService;
+    private readonly ISystemTrayService _systemTrayService;
 
     public MainWindow()
     {
@@ -24,6 +26,39 @@ public sealed partial class MainWindow : Window
         _authService = new SupabaseAuthService(_credentialStorage);
         _windowsPrinterService = new WindowsPrinterService();
         _printerSyncService = new PrinterSyncService(_authService);
+        _systemTrayService = new SystemTrayService();
+        _jobQueueService = new JobQueueService(_authService);
+
+        // Initialize native system tray icon and background persistence
+        _systemTrayService.Initialize(this);
+
+        _systemTrayService.RestoreRequested += () =>
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                _systemTrayService.RestoreFromTray();
+                this.Activate();
+            });
+        };
+
+        _systemTrayService.ExitRequested += () =>
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                _systemTrayService.Dispose();
+                Environment.Exit(0);
+            });
+        };
+
+        // Minimize / Close to Tray behavior: keep running in background
+        if (this.AppWindow != null)
+        {
+            this.AppWindow.Closing += (sender, args) =>
+            {
+                args.Cancel = true;
+                _systemTrayService.HideToTray();
+            };
+        }
 
         NavigateToLogin();
     }
@@ -35,7 +70,7 @@ public sealed partial class MainWindow : Window
 
         loginVm.LoginSucceeded += () =>
         {
-            NavigateToPrinterSetup();
+            NavigateToDashboard();
         };
 
         MainContentContainer.Content = loginView;
@@ -44,19 +79,23 @@ public sealed partial class MainWindow : Window
         _ = loginVm.CheckAutoLoginAsync();
     }
 
-    private void NavigateToPrinterSetup()
+    private void NavigateToDashboard()
     {
+        var queueVm = new LiveQueueViewModel(_jobQueueService, _systemTrayService);
         var setupVm = new PrinterSetupViewModel(_authService, _windowsPrinterService, _printerSyncService);
-        var setupView = new PrinterSetupView { ViewModel = setupVm };
+        var dashboardView = new DashboardView(queueVm, setupVm, _systemTrayService);
 
-        setupVm.LoggedOut += () =>
+        dashboardView.LoggedOut += () =>
         {
+            queueVm.Dispose();
+            setupVm.Dispose();
             NavigateToLogin();
         };
 
-        MainContentContainer.Content = setupView;
+        MainContentContainer.Content = dashboardView;
 
-        // Scan installed Windows printers and merge with Supabase cloud records
+        // Launch Realtime Queue listener and Printer scanner concurrently
+        _ = queueVm.StartAsync(_authService.CurrentStoreId);
         _ = setupVm.InitializeAsync();
     }
 }
