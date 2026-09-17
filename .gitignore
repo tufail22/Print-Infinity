@@ -105,8 +105,12 @@ next-env.d.ts
 *.log
 
 # Windows App SDK / WinUI 3 packaging
+publish/
+[Pp]ublish/
+scratch/
 AppPackages/
 BundleArtifacts/
+
 Package.StoreAssociation.xml
 _pkginfo.txt
 *.appx

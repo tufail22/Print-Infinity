@@ -105,4 +105,19 @@ public sealed partial class MainWindow : Window
         _ = queueVm.StartAsync(_authService.CurrentStoreId);
         _ = setupVm.InitializeAsync();
     }
+
+    /// <summary>
+    /// Starts the application silently in the Windows system tray without showing the main window.
+    /// Used when launched at Windows boot/startup with --tray.
+    /// </summary>
+    public void StartMinimizedToTray()
+    {
+        this.Activate();
+        _systemTrayService.HideToTray();
+        _systemTrayService.ShowNotification(
+            "Print Infinity Agent",
+            "Agent started in background and is monitoring the print queue."
+        );
+    }
 }
+
