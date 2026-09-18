@@ -13,6 +13,9 @@ public partial class LoginViewModel : ObservableObject
     public event Action? LoginSucceeded;
 
     [ObservableProperty]
+    private string _storeName = string.Empty;
+
+    [ObservableProperty]
     private string _email = string.Empty;
 
     [ObservableProperty]
@@ -56,11 +59,11 @@ public partial class LoginViewModel : ObservableObject
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
     public bool HasSuccess => !string.IsNullOrWhiteSpace(SuccessMessage);
 
-    public string TitleText => IsRegisterMode ? "Register Storekeeper" : "Storekeeper Login";
-    public string SubmitButtonText => IsRegisterMode ? "Create Account & Register" : "Sign In to Agent";
+    public string TitleText => IsRegisterMode ? "Register New Shop & Storekeeper" : "Storekeeper Login";
+    public string SubmitButtonText => IsRegisterMode ? "Create Account & Register Shop" : "Sign In to Shop PC";
     public string ModeToggleText => IsRegisterMode
-        ? "Already have an account? Sign In"
-        : "Need to register this shop's PC? Register Storekeeper";
+        ? "Already registered? Sign In to Existing Shop"
+        : "First time launching? Register this Shop's PC";
 
     public LoginViewModel(ISupabaseAuthService authService)
     {
@@ -80,6 +83,12 @@ public partial class LoginViewModel : ObservableObject
     {
         ErrorMessage = string.Empty;
         SuccessMessage = string.Empty;
+
+        if (IsRegisterMode && string.IsNullOrWhiteSpace(StoreName))
+        {
+            ErrorMessage = "Please enter your Shop / Store Name.";
+            return;
+        }
 
         if (string.IsNullOrWhiteSpace(Email))
         {
@@ -104,7 +113,7 @@ public partial class LoginViewModel : ObservableObject
         {
             if (IsRegisterMode)
             {
-                var registered = await _authService.RegisterAsync(Email.Trim(), Password);
+                var registered = await _authService.RegisterAsync(Email.Trim(), Password, StoreName.Trim());
                 if (registered)
                 {
                     SuccessMessage = "Storekeeper registered successfully! Connecting to store...";
@@ -142,16 +151,19 @@ public partial class LoginViewModel : ObservableObject
         IsBusy = true;
         try
         {
+            Program.Log("Checking auto-login with stored credentials...");
             var restored = await _authService.TryRestoreSessionAsync();
             if (restored)
             {
+                Program.Log("Auto-login succeeded!");
                 LoginSucceeded?.Invoke();
                 return true;
             }
+            Program.Log("No stored session found or restore returned false.");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Auto-login check note: {ex.Message}");
+            Program.Log($"Auto-login exception: {ex}");
         }
         finally
         {

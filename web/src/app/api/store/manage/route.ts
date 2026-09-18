@@ -15,7 +15,21 @@ export async function GET(req: NextRequest) {
     });
 
     const searchParams = req.nextUrl.searchParams;
-    const storeId = searchParams.get("store_id") || "a0000000-0000-0000-0000-000000000001";
+    let storeId = searchParams.get("store_id");
+    const userId = searchParams.get("user_id");
+
+    if (!storeId && userId) {
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc("get_storekeeper_store", {
+        p_user_id: userId,
+      });
+      if (!rpcErr && rpcRes?.success && rpcRes.store) {
+        storeId = rpcRes.store.id;
+      }
+    }
+
+    if (!storeId) {
+      storeId = "a0000000-0000-0000-0000-000000000001";
+    }
 
     // 1. Fetch store info
     const { data: store, error: storeErr } = await supabase

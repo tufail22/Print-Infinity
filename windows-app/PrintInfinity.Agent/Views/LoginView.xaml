@@ -7,29 +7,82 @@
     xmlns:vm="using:PrintInfinity.Agent.ViewModels"
     mc:Ignorable="d">
 
-    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-        <!-- Subtle Ambient Background -->
-        <Border HorizontalAlignment="Center" 
-                VerticalAlignment="Center" 
-                Width="460"
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                CornerRadius="16"
-                Padding="36">
-            
-            <StackPanel Spacing="20">
-                <!-- Branding Header -->
-                <StackPanel HorizontalAlignment="Center" Spacing="8" Margin="0,0,0,8">
-                    <Border Background="#EEF2FF" CornerRadius="28" Width="56" Height="56" HorizontalAlignment="Center">
-                        <FontIcon Glyph="&#xE749;" FontSize="28" Foreground="#4F46E5" VerticalAlignment="Center" HorizontalAlignment="Center" />
+    <Grid>
+        <!-- Gradient background -->
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#0F0F1A" Offset="0"/>
+                <GradientStop Color="#1A1A2E" Offset="0.5"/>
+                <GradientStop Color="#16213E" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
+
+        <!-- Decorative blurred circles (ambient glow) -->
+        <Ellipse Width="400" Height="400"
+                 HorizontalAlignment="Left" VerticalAlignment="Top"
+                 Margin="-100,-100,0,0" Opacity="0.12">
+            <Ellipse.Fill>
+                <RadialGradientBrush>
+                    <GradientStop Color="#6366F1" Offset="0"/>
+                    <GradientStop Color="Transparent" Offset="1"/>
+                </RadialGradientBrush>
+            </Ellipse.Fill>
+        </Ellipse>
+
+        <Ellipse Width="300" Height="300"
+                 HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                 Margin="0,0,-80,-80" Opacity="0.10">
+            <Ellipse.Fill>
+                <RadialGradientBrush>
+                    <GradientStop Color="#10B981" Offset="0"/>
+                    <GradientStop Color="Transparent" Offset="1"/>
+                </RadialGradientBrush>
+            </Ellipse.Fill>
+        </Ellipse>
+
+        <!-- Login Card -->
+        <Border HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Width="440"
+                CornerRadius="20"
+                Padding="40"
+                Background="#1E1E30"
+                BorderBrush="#6366F1"
+                BorderThickness="1">
+
+            <StackPanel Spacing="22">
+                <!-- Logo + Branding -->
+                <StackPanel HorizontalAlignment="Center" Spacing="10" Margin="0,0,0,6">
+                    <Border CornerRadius="16" Width="72" Height="72"
+                            HorizontalAlignment="Center"
+                            BorderThickness="1.5">
+                        <Border.BorderBrush>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#6366F1" Offset="0"/>
+                                <GradientStop Color="#10B981" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.BorderBrush>
+                        <Image Source="ms-appx:///Assets/AppLogo.png"
+                               Width="64" Height="64"
+                               Stretch="Uniform"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
                     </Border>
-                    <TextBlock Text="Print Infinity Agent" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" />
-                    <TextBlock Text="Storekeeper Shop PC Portal" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
+
+                    <TextBlock Text="Print Infinity Agent"
+                               FontSize="22" FontWeight="Bold"
+                               Foreground="White"
+                               HorizontalAlignment="Center" />
+                    <TextBlock Text="Storekeeper · Shop PC Portal"
+                               FontSize="12"
+                               Foreground="#8892A4"
+                               HorizontalAlignment="Center" />
                 </StackPanel>
 
-                <!-- Mode Title & Subtitle -->
-                <TextBlock Text="{x:Bind ViewModel.TitleText, Mode=OneWay}" FontSize="18" FontWeight="SemiBold" />
+                <!-- Mode Title -->
+                <TextBlock Text="{x:Bind ViewModel.TitleText, Mode=OneWay}"
+                           FontSize="15" FontWeight="SemiBold"
+                           Foreground="#CBD5E1" />
 
                 <!-- Error / Success InfoBar -->
                 <InfoBar IsOpen="{x:Bind ViewModel.HasError, Mode=OneWay}"
@@ -41,52 +94,90 @@
                          Message="{x:Bind ViewModel.SuccessMessage, Mode=OneWay}" />
 
                 <!-- Form Fields -->
-                <StackPanel Spacing="14">
-                    <TextBox Header="Storekeeper Email" 
-                             PlaceholderText="shopkeeper@printinfinity.in"
-                             Text="{x:Bind ViewModel.Email, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <StackPanel Spacing="12">
+                    <!-- Shop Name (Register Mode only) -->
+                    <StackPanel Spacing="4" Visibility="{x:Bind ViewModel.RegisterFieldsVisibility, Mode=OneWay}">
+                        <TextBlock Text="Shop / Store Name" FontSize="12" Foreground="#94A3B8" />
+                        <TextBox PlaceholderText="e.g. Apex Digital Print Hub"
+                                 Text="{x:Bind ViewModel.StoreName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="#0F172A"
+                                 Foreground="White"
+                                 BorderBrush="#334155"
+                                 CornerRadius="10"
+                                 Padding="12,10"/>
+                    </StackPanel>
 
-                    <PasswordBox x:Name="PasswordInput"
-                                 Header="Password" 
-                                 PlaceholderText="Enter at least 6 characters"
-                                 Password="{x:Bind ViewModel.Password, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Email" FontSize="12" Foreground="#94A3B8" />
+                        <TextBox PlaceholderText="shopkeeper@store.com"
+                                 Text="{x:Bind ViewModel.Email, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="#0F172A"
+                                 Foreground="White"
+                                 BorderBrush="#334155"
+                                 CornerRadius="10"
+                                 Padding="12,10"/>
+                    </StackPanel>
 
-                    <PasswordBox x:Name="ConfirmPasswordInput"
-                                 Header="Confirm Password" 
-                                 PlaceholderText="Re-enter password"
-                                 Visibility="{x:Bind ViewModel.RegisterFieldsVisibility, Mode=OneWay}"
-                                 Password="{x:Bind ViewModel.ConfirmPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Password" FontSize="12" Foreground="#94A3B8" />
+                        <PasswordBox x:Name="PasswordInput"
+                                     PlaceholderText="Enter your password"
+                                     PasswordChanged="PasswordInput_PasswordChanged"
+                                     Background="#0F172A"
+                                     Foreground="White"
+                                     BorderBrush="#334155"
+                                     CornerRadius="10"
+                                     Padding="12,10"/>
+                    </StackPanel>
 
-                    <CheckBox Content="Remember session on this PC (Windows Credential Locker)"
+                    <StackPanel Spacing="4" Visibility="{x:Bind ViewModel.RegisterFieldsVisibility, Mode=OneWay}">
+                        <TextBlock Text="Confirm Password" FontSize="12" Foreground="#94A3B8" />
+                        <PasswordBox x:Name="ConfirmPasswordInput"
+                                     PlaceholderText="Re-enter password"
+                                     PasswordChanged="ConfirmPasswordInput_PasswordChanged"
+                                     Background="#0F172A"
+                                     Foreground="White"
+                                     BorderBrush="#334155"
+                                     CornerRadius="10"
+                                     Padding="12,10"/>
+                    </StackPanel>
+
+                    <CheckBox Content="Remember me on this PC"
                               IsChecked="{x:Bind ViewModel.RememberMe, Mode=TwoWay}"
-                              FontSize="13" />
+                              FontSize="13"
+                              Foreground="#94A3B8" />
                 </StackPanel>
 
                 <!-- Submit Button -->
-                <Button Style="{ThemeResource AccentButtonStyle}"
-                        HorizontalAlignment="Stretch"
-                        Height="44"
+                <Button HorizontalAlignment="Stretch"
+                        Height="46"
+                        CornerRadius="12"
+                        Background="#6366F1"
                         Command="{x:Bind ViewModel.SubmitCommand}"
                         IsEnabled="{x:Bind ViewModel.IsNotBusy, Mode=OneWay}">
                     <Grid>
-                        <TextBlock Text="{x:Bind ViewModel.SubmitButtonText, Mode=OneWay}" 
-                                   FontWeight="SemiBold" 
-                                   Visibility="{x:Bind ViewModel.NotBusyVisibility, Mode=OneWay}" />
-                        <ProgressRing IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}" 
-                                      Visibility="{x:Bind ViewModel.BusyVisibility, Mode=OneWay}" 
-                                      Width="20" Height="20" />
+                        <TextBlock Text="{x:Bind ViewModel.SubmitButtonText, Mode=OneWay}"
+                                   FontWeight="Bold" FontSize="14" Foreground="White"
+                                   Visibility="{x:Bind ViewModel.NotBusyVisibility, Mode=OneWay}"
+                                   HorizontalAlignment="Center"/>
+                        <ProgressRing IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}"
+                                      Visibility="{x:Bind ViewModel.BusyVisibility, Mode=OneWay}"
+                                      Width="20" Height="20"
+                                      HorizontalAlignment="Center"/>
                     </Grid>
                 </Button>
 
                 <!-- Mode Toggle -->
                 <HyperlinkButton HorizontalAlignment="Center"
                                  Content="{x:Bind ViewModel.ModeToggleText, Mode=OneWay}"
-                                 Command="{x:Bind ViewModel.ToggleModeCommand}" />
+                                 Command="{x:Bind ViewModel.ToggleModeCommand}"
+                                 Foreground="#6366F1" />
 
-                <!-- Footer Security Badge -->
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6" Margin="0,8,0,0">
-                    <FontIcon Glyph="&#xE72E;" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                    <TextBlock Text="Protected by Windows DPAPI &amp; Credential Locker" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                <!-- Security Badge -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6">
+                    <FontIcon Glyph="&#xE72E;" FontSize="11" Foreground="#475569" />
+                    <TextBlock Text="Protected by Windows DPAPI &amp; Credential Locker"
+                               FontSize="11" Foreground="#475569" />
                 </StackPanel>
             </StackPanel>
         </Border>

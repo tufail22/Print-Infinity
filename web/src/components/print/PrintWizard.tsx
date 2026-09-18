@@ -11,6 +11,7 @@ import {
   Eye,
   Lock,
   Zap,
+  ShieldCheck,
 } from "lucide-react";
 import { StoreHeader } from "@/components/print/StoreHeader";
 import { UploadZone } from "@/components/print/UploadZone";
@@ -167,7 +168,7 @@ function PrintWizardContent() {
         .from("print-uploads")
         .upload(storagePath, firstFile.file, {
           cacheControl: "3600",
-          upsert: true,
+          upsert: false,
         });
 
       if (uploadError) {
@@ -218,7 +219,7 @@ function PrintWizardContent() {
           .from("print_jobs")
           .insert({
             store_id: store.id,
-            status: "pending_payment",
+            status: method === "cash" ? "pending_approval" : "pending_payment",
             color_mode: settings.colorMode,
             copies: settings.copies,
             paper_size: paperSizeVal,
@@ -278,26 +279,48 @@ function PrintWizardContent() {
             const isLoaded = await loadScript();
             if (isLoaded && (window as any).Razorpay) {
               const rzp = new (window as any).Razorpay({
-                key: orderData.keyId,
+                key: orderData.key_id || orderData.keyId || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
                 amount: orderData.amount,
                 currency: orderData.currency || "INR",
                 name: "Print Infinity",
                 description: `Print Job (${jobData.id.slice(0, 8)})`,
-                order_id: orderData.orderId,
+                order_id: orderData.order_id || orderData.orderId,
                 theme: { color: "#4f46e5" },
                 modal: {
                   ondismiss: () => {
-                    // Navigate to tracker; Supabase Realtime will reflect webhook status
+                    console.log("[Razorpay] Customer dismissed checkout modal");
                     setActiveJob(jobData as PrintJobRecord);
                     setStep(6);
                   },
                 },
-                handler: () => {
-                  // Customer completed payment; Realtime webhook will flip status to pending_approval
+                handler: async (response: any) => {
+                  try {
+                    // Send razorpay_payment_id, razorpay_order_id, razorpay_signature to verify endpoint
+                    await fetch("/api/verify-payment", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        print_job_id: jobData.id,
+                        customer_token: jobToken,
+                        razorpay_payment_id: response?.razorpay_payment_id,
+                        razorpay_order_id: response?.razorpay_order_id,
+                        razorpay_signature: response?.razorpay_signature,
+                      }),
+                    });
+                  } catch (vErr) {
+                    console.warn("Payment verification notice:", vErr);
+                  }
                   setActiveJob(jobData as PrintJobRecord);
                   setStep(6);
                 },
               });
+
+              // Handle payment failure event
+              rzp.on("payment.failed", (response: any) => {
+                console.error("[Razorpay] Payment failed:", response?.error);
+                alert(`Payment could not be completed: ${response?.error?.description || "Transaction failed"}. You may retry or pay via cash at the counter.`);
+              });
+
               rzp.open();
               return;
             }
@@ -546,6 +569,28 @@ function PrintWizardContent() {
           />
         )}
       </main>
+
+      {/* BOTTOM FOOTER: STOREKEEPER ADMIN PORTAL */}
+      <footer className="w-full max-w-xl mx-auto px-4 mt-8 pt-4 pb-8 border-t border-slate-200/80 text-center space-y-2">
+        <div className="flex flex-wrap items-center justify-center gap-3 text-xs font-semibold text-slate-500">
+          <span className="flex items-center gap-1.5 text-slate-600">
+            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span>{store?.name || "Print Infinity Terminal"}</span>
+          </span>
+          <span className="text-slate-300">•</span>
+          <a
+            href="/admin"
+            id="link-admin-portal"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/5 hover:bg-slate-900/10 text-slate-700 hover:text-indigo-600 transition-all font-bold border border-slate-200 shadow-xs active:scale-95"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Storekeeper Admin Portal</span>
+          </a>
+        </div>
+        <p className="text-[11px] text-slate-400 font-medium">
+          Print Infinity Cloud Terminal &copy; {new Date().getFullYear()} • Zero-disk retention privacy
+        </p>
+      </footer>
     </div>
   );
 }

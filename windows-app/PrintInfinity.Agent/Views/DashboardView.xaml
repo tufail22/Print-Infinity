@@ -8,18 +8,24 @@
     xmlns:views="using:PrintInfinity.Agent.Views"
     mc:Ignorable="d">
 
-    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    <Grid>
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Color="#0B0B14" Offset="0"/>
+                <GradientStop Color="#111120" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
+
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Top Header Navigation Bar -->
-        <Border Grid.Row="0" 
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" 
-                Padding="24,14" 
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" 
+        <!-- ===== TOP HEADER NAV BAR ===== -->
+        <Border Grid.Row="0" Padding="20,12"
+                Background="#131322"
+                BorderBrush="#1E2235"
                 BorderThickness="0,0,0,1">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -28,197 +34,306 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Branding -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                    <Border Background="#EEF2FF" CornerRadius="10" Width="40" Height="40">
-                        <FontIcon Glyph="&#xE749;" FontSize="20" Foreground="#4F46E5" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                <!-- Logo + Store Name -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal"
+                            Spacing="12" VerticalAlignment="Center">
+                    <Border CornerRadius="10" Width="42" Height="42"
+                            BorderBrush="#6366F1" BorderThickness="1.5"
+                            Background="#1A1A30">
+                        <Image Source="ms-appx:///Assets/AppLogo.png"
+                               Width="34" Height="34"
+                               Stretch="Uniform"/>
                     </Border>
-                    <StackPanel>
+
+                    <StackPanel VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="Print Infinity Agent" FontSize="18" FontWeight="Bold" />
-                            <Border Background="#E0E7FF" CornerRadius="10" Padding="8,2">
-                                <TextBlock Text="{x:Bind PrinterSetupVm.StoreName, Mode=OneWay}" Foreground="#3730A3" FontSize="11" FontWeight="SemiBold" />
+                            <TextBlock Text="Print Infinity Agent"
+                                       FontSize="16" FontWeight="Bold"
+                                       Foreground="White"/>
+                            <Border CornerRadius="8" Padding="8,2"
+                                    Background="#1E1A40">
+                                <TextBlock Text="{x:Bind PrinterSetupVm.StoreName, Mode=OneWay}"
+                                           Foreground="#A5B4FC"
+                                           FontSize="11" FontWeight="SemiBold"/>
                             </Border>
                         </StackPanel>
-                        <TextBlock Text="{x:Bind PrinterSetupVm.StorekeeperEmail, Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" />
+                        <TextBlock Text="{x:Bind PrinterSetupVm.StorekeeperEmail, Mode=OneWay}"
+                                   Foreground="#374151" FontSize="11"/>
                     </StackPanel>
                 </StackPanel>
 
-                <!-- Centered Navigation Tabs -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
-                    <RadioButtons x:Name="ViewSelector" SelectedIndex="0" SelectionChanged="OnViewSelectionChanged">
-                        <RadioButtons.Items>
-                            <RadioButton Content="Live Print Queue" Tag="Queue" IsChecked="True" />
-                            <RadioButton Content="Hardware Printers" Tag="Printers" />
-                            <RadioButton Content="Audit Log" Tag="Audit" />
-                        </RadioButtons.Items>
-                    </RadioButtons>
+                <!-- Tab Navigation (simple ToggleButtons) -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal"
+                            HorizontalAlignment="Center" Spacing="4"
+                            VerticalAlignment="Center">
+
+                    <ToggleButton x:Name="BtnTabQueue"
+                                  Content="⚡  Live Print Queue"
+                                  IsChecked="True"
+                                  Click="OnTabQueueClick"
+                                  Padding="16,8"
+                                  CornerRadius="10"
+                                  FontSize="13" FontWeight="SemiBold"
+                                  Foreground="White"/>
+
+                    <ToggleButton x:Name="BtnTabPrinters"
+                                  Content="🖨  Hardware Printers"
+                                  IsChecked="False"
+                                  Click="OnTabPrintersClick"
+                                  Padding="16,8"
+                                  CornerRadius="10"
+                                  FontSize="13" FontWeight="SemiBold"
+                                  Foreground="#94A3B8"/>
+
+                    <ToggleButton x:Name="BtnTabAudit"
+                                  Content="📋  Audit Log"
+                                  IsChecked="False"
+                                  Click="OnTabAuditClick"
+                                  Padding="16,8"
+                                  CornerRadius="10"
+                                  FontSize="13" FontWeight="SemiBold"
+                                  Foreground="#94A3B8"/>
                 </StackPanel>
 
-                <!-- Top Right Actions -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <!-- Right: Status + Controls -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal"
+                            Spacing="8" VerticalAlignment="Center">
                     <!-- Realtime Pulse -->
-                    <Border Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="8" Padding="10,6">
+                    <Border CornerRadius="8" Padding="10,6"
+                            Background="#05150E"
+                            BorderBrush="#10B98140"
+                            BorderThickness="1">
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <Ellipse Width="8" Height="8" Fill="#10B981" />
-                            <TextBlock Text="Realtime Active" FontSize="12" Foreground="#065F46" FontWeight="SemiBold" />
+                            <Ellipse Width="7" Height="7" Fill="#10B981"/>
+                            <TextBlock Text="Realtime Active"
+                                       FontSize="11" Foreground="#10B981"
+                                       FontWeight="SemiBold"/>
                         </StackPanel>
                     </Border>
 
-                    <!-- Minimize to Tray Button -->
-                    <Button Click="OnMinimizeToTrayClick" ToolTipService.ToolTip="Hide to Windows System Tray (keeps listening)">
+                    <!-- Minimize to Tray -->
+                    <Button Click="OnMinimizeToTrayClick"
+                            ToolTipService.ToolTip="Minimize to System Tray"
+                            Background="#1E2235"
+                            BorderBrush="#334155"
+                            CornerRadius="8"
+                            Padding="10,7">
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE740;" FontSize="14" />
-                            <TextBlock Text="Tray" />
+                            <FontIcon Glyph="&#xE740;" FontSize="13" Foreground="#94A3B8"/>
+                            <TextBlock Text="Tray" FontSize="12" Foreground="#94A3B8"/>
                         </StackPanel>
                     </Button>
 
-                    <!-- Sign Out Button -->
-                    <Button Click="OnSignOutClick" ToolTipService.ToolTip="Sign out of storekeeper account">
+                    <!-- Sign Out -->
+                    <Button Click="OnSignOutClick"
+                            ToolTipService.ToolTip="Sign out"
+                            Background="#1A0E0E"
+                            BorderBrush="#7F1D1D"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="10,7">
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xF3B1;" FontSize="14" />
-                            <TextBlock Text="Sign Out" />
+                            <FontIcon Glyph="&#xF3B1;" FontSize="13" Foreground="#F87171"/>
+                            <TextBlock Text="Sign Out" FontSize="12" Foreground="#F87171"/>
                         </StackPanel>
                     </Button>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- Main Tab Content Container -->
+        <!-- ===== MAIN CONTENT ===== -->
         <Grid Grid.Row="1">
+
             <!-- TAB 1: LIVE PRINT QUEUE -->
-            <ScrollViewer x:Name="QueueSection" Padding="24" Visibility="Visible">
-                <StackPanel Spacing="16" MaxWidth="960" HorizontalAlignment="Stretch">
-                    
-                    <!-- Notification Banner -->
+            <ScrollViewer x:Name="QueueSection" Padding="28,24"
+                          Visibility="Visible">
+                <StackPanel Spacing="20" MaxWidth="980"
+                            HorizontalAlignment="Stretch">
+
                     <InfoBar IsOpen="{x:Bind QueueVm.HasNotification, Mode=OneWay}"
                              Severity="Informational"
                              Message="{x:Bind QueueVm.NotificationMessage, Mode=OneWay}" />
 
-                    <!-- Section Header -->
-                    <Grid Margin="0,0,0,4">
+                    <!-- Header -->
+                    <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <TextBlock Text="Live Incoming Print Queue" FontSize="20" FontWeight="Bold" />
-                                <Border Background="#4F46E5" CornerRadius="12" Padding="10,2" VerticalAlignment="Center">
-                                    <TextBlock Text="{x:Bind QueueVm.JobCount, Mode=OneWay}" Foreground="White" FontSize="12" FontWeight="Bold" />
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <TextBlock Text="Live Incoming Print Queue"
+                                           FontSize="22" FontWeight="Bold"
+                                           Foreground="White"/>
+                                <Border CornerRadius="14" Padding="12,3"
+                                        VerticalAlignment="Center"
+                                        Background="#6366F1">
+                                    <TextBlock Text="{x:Bind QueueVm.JobCount, Mode=OneWay}"
+                                               Foreground="White"
+                                               FontSize="13" FontWeight="Bold"/>
                                 </Border>
                             </StackPanel>
-                            <TextBlock Text="Customer jobs awaiting shopkeeper verification. Zero-disk &amp; privacy-first: strictly print settings only." 
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="13" Margin="0,2,0,0" />
+                            <TextBlock Text="Customer jobs awaiting storekeeper verification — privacy-first, print settings only."
+                                       Foreground="#374151" FontSize="13"
+                                       Margin="0,3,0,0"/>
                         </StackPanel>
-                        <TextBlock Grid.Column="1" Text="{x:Bind QueueVm.StatusMessage, Mode=OneWay}" 
-                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="12" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{x:Bind QueueVm.StatusMessage, Mode=OneWay}"
+                                   Foreground="#374151" FontSize="12"
+                                   VerticalAlignment="Center"/>
                     </Grid>
 
                     <!-- Empty State -->
                     <Border Visibility="{x:Bind QueueVm.HasNoJobs, Mode=OneWay}"
-                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                            BorderThickness="1"
-                            CornerRadius="16"
-                            Padding="48"
-                            Margin="0,20,0,0">
-                        <StackPanel HorizontalAlignment="Center" Spacing="12">
-                            <Border Background="#F1F5F9" CornerRadius="32" Width="64" Height="64" HorizontalAlignment="Center">
-                                <FontIcon Glyph="&#xE749;" FontSize="28" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                            CornerRadius="18" Padding="56"
+                            Margin="0,16,0,0"
+                            Background="#131322"
+                            BorderBrush="#1E2235"
+                            BorderThickness="1">
+                        <StackPanel HorizontalAlignment="Center" Spacing="14">
+                            <Border CornerRadius="36" Width="72" Height="72"
+                                    HorizontalAlignment="Center"
+                                    Background="#1E2235">
+                                <FontIcon Glyph="&#xE749;" FontSize="30"
+                                          Foreground="#374151"
+                                          VerticalAlignment="Center"
+                                          HorizontalAlignment="Center"/>
                             </Border>
-                            <TextBlock Text="Queue is Empty" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                            <TextBlock Text="Incoming print jobs from store customers will appear here in real-time." 
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="13" HorizontalAlignment="Center" />
+                            <TextBlock Text="Queue is Empty"
+                                       FontSize="20" FontWeight="SemiBold"
+                                       Foreground="#D1D5DB"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="Customer print jobs will appear here in real-time."
+                                       Foreground="#374151" FontSize="13"
+                                       HorizontalAlignment="Center"/>
                         </StackPanel>
                     </Border>
 
-                    <!-- Job Cards List -->
+                    <!-- Job Cards -->
                     <ItemsControl ItemsSource="{x:Bind QueueVm.PendingJobs, Mode=OneWay}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="models:QueueItem">
-                                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                <Border CornerRadius="16" Padding="24"
+                                        Margin="0,0,0,14"
                                         BorderThickness="1"
-                                        CornerRadius="14"
-                                        Padding="22"
-                                        Margin="0,0,0,14">
+                                        Background="#161627"
+                                        BorderBrush="#1E2235">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
-                                            <!-- Column 0: Price & Color Badge -->
-                                            <ColumnDefinition Width="220" />
-                                            <!-- Column 1: Print Specs (NO filename, NO thumbnail) -->
-                                            <ColumnDefinition Width="*" />
-                                            <!-- Column 2: Two Action Buttons (Approve, Reject) -->
-                                            <ColumnDefinition Width="220" />
+                                            <ColumnDefinition Width="200"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="210"/>
                                         </Grid.ColumnDefinitions>
 
                                         <!-- Price & Color Mode -->
-                                        <StackPanel Grid.Column="0" Spacing="8" VerticalAlignment="Center">
-                                            <TextBlock Text="{x:Bind FormattedPrice}" FontSize="26" FontWeight="Bold" Foreground="#0F172A" />
-                                            <Border Background="{x:Bind ColorBadgeBackground}" CornerRadius="6" Padding="8,3" HorizontalAlignment="Left">
-                                                <TextBlock Text="{x:Bind ColorModeBadgeText}" FontSize="12" FontWeight="SemiBold" Foreground="{x:Bind ColorBadgeForeground}" />
-                                            </Border>
-                                            <TextBlock Text="{x:Bind FormattedTime}" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                        <StackPanel Grid.Column="0" Spacing="8"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock Text="{x:Bind FormattedPrice}"
+                                                       FontSize="28" FontWeight="Bold"
+                                                       Foreground="White"/>
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Border CornerRadius="6" Padding="8,3"
+                                                        Background="{x:Bind ColorBadgeBackground}"
+                                                        HorizontalAlignment="Left">
+                                                    <TextBlock Text="{x:Bind ColorModeBadgeText}"
+                                                               FontSize="12" FontWeight="SemiBold"
+                                                               Foreground="{x:Bind ColorBadgeForeground}"/>
+                                                </Border>
+                                                <Border CornerRadius="6" Padding="8,3"
+                                                        Background="{x:Bind PaymentBadgeBackground, Mode=OneWay}"
+                                                        HorizontalAlignment="Left">
+                                                    <TextBlock Text="{x:Bind PaymentBadgeText, Mode=OneWay}"
+                                                               FontSize="11" FontWeight="SemiBold"
+                                                               Foreground="{x:Bind PaymentBadgeForeground, Mode=OneWay}"/>
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Text="{x:Bind FormattedTime}"
+                                                        FontSize="11" Foreground="#374151"/>
                                         </StackPanel>
 
-                                        <!-- Technical Print Parameters ONLY (Privacy Guaranteed) -->
-                                        <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Center" Padding="16,0">
-                                            <StackPanel Orientation="Horizontal" Spacing="24">
-                                                <StackPanel Spacing="2">
-                                                    <TextBlock Text="Pages" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                                                    <TextBlock Text="{x:Bind FormattedPages}" FontSize="15" FontWeight="SemiBold" />
+                                        <!-- Print Specs -->
+                                        <StackPanel Grid.Column="1" Spacing="10"
+                                                    VerticalAlignment="Center"
+                                                    Padding="20,0">
+                                            <StackPanel Orientation="Horizontal" Spacing="28">
+                                                <StackPanel Spacing="3">
+                                                    <TextBlock Text="PAGES" FontSize="10"
+                                                               Foreground="#374151"
+                                                               FontWeight="SemiBold"/>
+                                                    <TextBlock Text="{x:Bind FormattedPages}"
+                                                               FontSize="16" FontWeight="Bold"
+                                                               Foreground="#E2E8F0"/>
                                                 </StackPanel>
-                                                <StackPanel Spacing="2">
-                                                    <TextBlock Text="Copies" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                                                    <TextBlock Text="{x:Bind FormattedCopies}" FontSize="15" FontWeight="SemiBold" />
+                                                <StackPanel Spacing="3">
+                                                    <TextBlock Text="COPIES" FontSize="10"
+                                                               Foreground="#374151"
+                                                               FontWeight="SemiBold"/>
+                                                    <TextBlock Text="{x:Bind FormattedCopies}"
+                                                               FontSize="16" FontWeight="Bold"
+                                                               Foreground="#E2E8F0"/>
                                                 </StackPanel>
-                                                <StackPanel Spacing="2">
-                                                    <TextBlock Text="Paper Size" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                                                    <TextBlock Text="{x:Bind PaperSize}" FontSize="15" FontWeight="SemiBold" />
+                                                <StackPanel Spacing="3">
+                                                    <TextBlock Text="PAPER" FontSize="10"
+                                                               Foreground="#374151"
+                                                               FontWeight="SemiBold"/>
+                                                    <TextBlock Text="{x:Bind PaperSize}"
+                                                               FontSize="16" FontWeight="Bold"
+                                                               Foreground="#E2E8F0"/>
                                                 </StackPanel>
                                             </StackPanel>
-
-                                            <!-- Privacy Commitment Tag -->
-                                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
-                                                <FontIcon Glyph="&#xE72E;" FontSize="11" Foreground="#10B981" />
-                                                <TextBlock Text="Privacy Guard: Content preview omitted" FontSize="11" Foreground="#059669" />
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <FontIcon Glyph="&#xE72E;" FontSize="11"
+                                                          Foreground="#10B981"/>
+                                                <TextBlock Text="Privacy Guard: content preview omitted"
+                                                           FontSize="11" Foreground="#065F46"/>
                                             </StackPanel>
                                         </StackPanel>
 
-                                        <!-- Two Action Buttons: Approve & Reject -->
-                                        <StackPanel Grid.Column="2" Spacing="8" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                            <!-- Approve Button (Key: Enter / Alt+A) -->
-                                            <Button Style="{ThemeResource AccentButtonStyle}"
-                                                    HorizontalAlignment="Stretch"
-                                                    Height="38"
+                                        <!-- Action Buttons -->
+                                        <StackPanel Grid.Column="2" Spacing="10"
+                                                    VerticalAlignment="Center"
+                                                    HorizontalAlignment="Right">
+                                            <Button HorizontalAlignment="Stretch"
+                                                    Height="42" CornerRadius="10"
+                                                    Background="#059669"
                                                     IsTabStop="True"
                                                     AccessKey="A"
                                                     AutomationProperties.Name="Approve and print job"
-                                                    AutomationProperties.HelpText="Approves this print job and starts printing immediately"
                                                     Click="OnApproveJobClick"
                                                     DataContext="{x:Bind}">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <FontIcon Glyph="&#xE73E;" FontSize="13" />
-                                                    <TextBlock Text="Approve" FontWeight="SemiBold" />
-                                                    <ProgressRing IsActive="{x:Bind IsApproving, Mode=OneWay}" Width="14" Height="14" Margin="4,0,0,0" />
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <FontIcon Glyph="&#xE73E;" FontSize="14"
+                                                              Foreground="White"/>
+                                                    <TextBlock Text="{x:Bind ApproveButtonText, Mode=OneWay}"
+                                                               FontWeight="Bold" FontSize="13"
+                                                               Foreground="White"/>
+                                                    <ProgressRing IsActive="{x:Bind IsApproving, Mode=OneWay}"
+                                                                  Width="14" Height="14"
+                                                                  Foreground="White"
+                                                                  Margin="4,0,0,0"/>
                                                 </StackPanel>
                                             </Button>
 
-                                            <!-- Reject Button (Alt+R) -->
                                             <Button HorizontalAlignment="Stretch"
-                                                    Height="36"
-                                                    Foreground="#DC2626"
+                                                    Height="38" CornerRadius="10"
+                                                    Background="#1A0E0E"
+                                                    BorderBrush="#7F1D1D"
+                                                    BorderThickness="1"
                                                     IsTabStop="True"
                                                     AccessKey="R"
                                                     AutomationProperties.Name="Reject print job"
-                                                    AutomationProperties.HelpText="Rejects this print job and allows entering a cancellation reason"
                                                     Click="OnRejectJobClick"
                                                     DataContext="{x:Bind}">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <FontIcon Glyph="&#xE711;" FontSize="13" />
-                                                    <TextBlock Text="Reject..." />
-                                                    <ProgressRing IsActive="{x:Bind IsRejecting, Mode=OneWay}" Width="14" Height="14" Margin="4,0,0,0" />
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <FontIcon Glyph="&#xE711;" FontSize="13"
+                                                              Foreground="#F87171"/>
+                                                    <TextBlock Text="Reject..."
+                                                               FontSize="13"
+                                                               Foreground="#F87171"/>
+                                                    <ProgressRing IsActive="{x:Bind IsRejecting, Mode=OneWay}"
+                                                                  Width="14" Height="14"
+                                                                  Foreground="#F87171"
+                                                                  Margin="4,0,0,0"/>
                                                 </StackPanel>
                                             </Button>
                                         </StackPanel>
@@ -231,42 +346,60 @@
             </ScrollViewer>
 
             <!-- TAB 2: PRINTER SETUP -->
-            <ScrollViewer x:Name="PrintersSection" Padding="24" Visibility="Collapsed">
-                <views:PrinterSetupView x:Name="PrinterSetupControl" />
+            <ScrollViewer x:Name="PrintersSection" Padding="28,24"
+                          Visibility="Collapsed">
+                <views:PrinterSetupView x:Name="PrinterSetupControl" ViewModel="{x:Bind PrinterSetupVm, Mode=OneWay}"/>
             </ScrollViewer>
 
-            <!-- TAB 3: AUDIT LOG (Text-only, no thumbnails) -->
-            <ScrollViewer x:Name="AuditSection" Padding="24" Visibility="Collapsed">
-                <StackPanel Spacing="16" MaxWidth="960" HorizontalAlignment="Stretch">
+            <!-- TAB 3: AUDIT LOG -->
+            <ScrollViewer x:Name="AuditSection" Padding="28,24"
+                          Visibility="Collapsed">
+                <StackPanel Spacing="16" MaxWidth="980"
+                            HorizontalAlignment="Stretch">
                     <StackPanel>
-                        <TextBlock Text="Storekeeper Operational Audit Log" FontSize="18" FontWeight="Bold" />
-                        <TextBlock Text="Strictly text-only records of processed print jobs. Zero file storage or content previews." 
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="13" Margin="0,2,0,0" />
+                        <TextBlock Text="Storekeeper Operational Audit Log"
+                                   FontSize="20" FontWeight="Bold"
+                                   Foreground="White"/>
+                        <TextBlock Text="Text-only records of processed print jobs. No file storage."
+                                   Foreground="#374151" FontSize="13"
+                                   Margin="0,3,0,0"/>
                     </StackPanel>
 
                     <ItemsControl ItemsSource="{x:Bind QueueVm.AuditLogs, Mode=OneWay}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="models:AuditLogEntry">
-                                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="8"
-                                        Padding="14,10"
-                                        Margin="0,0,0,8">
+                                <Border CornerRadius="10" Padding="16,12"
+                                        Margin="0,0,0,8"
+                                        Background="#131322"
+                                        BorderBrush="#1E2235"
+                                        BorderThickness="1">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="180" />
-                                            <ColumnDefinition Width="120" />
-                                            <ColumnDefinition Width="160" />
-                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="190"/>
+                                            <ColumnDefinition Width="120"/>
+                                            <ColumnDefinition Width="160"/>
+                                            <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
 
-                                        <TextBlock Text="{x:Bind FormattedTimestamp}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
-                                        <Border Grid.Column="1" Background="#F1F5F9" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
-                                            <TextBlock Text="{x:Bind Status}" FontWeight="Bold" FontSize="12" Foreground="{x:Bind StatusBadgeColor}" />
+                                        <TextBlock Text="{x:Bind FormattedTimestamp}"
+                                                   FontSize="12" Foreground="#374151"
+                                                   VerticalAlignment="Center"/>
+                                        <Border Grid.Column="1" CornerRadius="4"
+                                                Padding="8,3" HorizontalAlignment="Left"
+                                                Background="#1E2235">
+                                            <TextBlock Text="{x:Bind Status}"
+                                                       FontWeight="Bold" FontSize="12"
+                                                       Foreground="{x:Bind StatusBadgeColor}"/>
                                         </Border>
-                                        <TextBlock Grid.Column="2" Text="{x:Bind FormattedPages}" FontSize="12" VerticalAlignment="Center" />
-                                        <TextBlock Grid.Column="3" Text="{x:Bind Details}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{x:Bind FormattedPages}"
+                                                   FontSize="12" Foreground="#4B5563"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="3"
+                                                   Text="{x:Bind Details}"
+                                                   FontSize="12" Foreground="#374151"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"/>
                                     </Grid>
                                 </Border>
                             </DataTemplate>
@@ -276,17 +409,31 @@
             </ScrollViewer>
         </Grid>
 
-        <!-- Footer -->
-        <Border Grid.Row="2" 
-                Padding="16,8" 
-                Background="{ThemeResource LayerFillColorDefaultBrush}" 
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" 
+        <!-- ===== FOOTER STATUS BAR ===== -->
+        <Border Grid.Row="2" Padding="20,8"
+                Background="#0B0B14"
+                BorderBrush="#1E2235"
                 BorderThickness="0,1,0,0">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="16">
-                <TextBlock Text="🔒 Zero-Disk Privacy: Document contents stream to memory only and are never saved to disk" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                <TextBlock Text="•" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                <TextBlock Text="Always-On Background Listener Active" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-            </StackPanel>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Spacing="16">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE72E;" FontSize="11" Foreground="#10B981"/>
+                        <TextBlock Text="Zero-Disk Privacy: Files stream to memory only"
+                                   FontSize="11" Foreground="#1F2937"/>
+                    </StackPanel>
+                    <TextBlock Text="•" FontSize="11" Foreground="#1F2937"/>
+                    <TextBlock Text="Always-On Background Listener Active"
+                               FontSize="11" Foreground="#1F2937"/>
+                </StackPanel>
+                <TextBlock Grid.Column="1"
+                           Text="Print Infinity Agent v1.0"
+                           FontSize="11" Foreground="#1F2937"
+                           VerticalAlignment="Center"/>
+            </Grid>
         </Border>
     </Grid>
 </UserControl>

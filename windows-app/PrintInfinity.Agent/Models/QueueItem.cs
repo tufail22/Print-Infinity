@@ -45,6 +45,20 @@ public partial class QueueItem : ObservableObject
     [ObservableProperty]
     private bool _isRejecting;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PaymentBadgeText))]
+    [NotifyPropertyChangedFor(nameof(PaymentBadgeBackground))]
+    [NotifyPropertyChangedFor(nameof(PaymentBadgeForeground))]
+    [NotifyPropertyChangedFor(nameof(ApproveButtonText))]
+    private string _paymentMethod = "cash"; // 'cash' or 'upi'
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PaymentBadgeText))]
+    [NotifyPropertyChangedFor(nameof(PaymentBadgeBackground))]
+    [NotifyPropertyChangedFor(nameof(PaymentBadgeForeground))]
+    [NotifyPropertyChangedFor(nameof(ApproveButtonText))]
+    private string _paymentStatus = "pending"; // 'pending' or 'verified'
+
     public string FormattedPrice => $"₹{Price:F2}";
     public string FormattedCopies => Copies == 1 ? "1 copy" : $"{Copies} copies";
     public string FormattedPages => PageCount == 1 ? "1 page" : $"{PageCount} pages";
@@ -61,4 +75,24 @@ public partial class QueueItem : ObservableObject
     public string ColorBadgeForeground => string.Equals(ColorMode, "color", StringComparison.OrdinalIgnoreCase)
         ? "#92400E"
         : "#334155";
+
+    public string PaymentBadgeText =>
+        string.Equals(PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase)
+            ? (string.Equals(PaymentStatus, "verified", StringComparison.OrdinalIgnoreCase) ? "💵 Cash Verified" : "💵 Cash at Counter")
+            : (string.Equals(PaymentStatus, "verified", StringComparison.OrdinalIgnoreCase) ? "💳 UPI Paid" : "⏳ UPI Pending");
+
+    public string PaymentBadgeBackground =>
+        string.Equals(PaymentStatus, "verified", StringComparison.OrdinalIgnoreCase)
+            ? "#052E16"
+            : (string.Equals(PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase) ? "#3B2507" : "#1E1B4B");
+
+    public string PaymentBadgeForeground =>
+        string.Equals(PaymentStatus, "verified", StringComparison.OrdinalIgnoreCase)
+            ? "#4ADE80"
+            : (string.Equals(PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase) ? "#FBBF24" : "#818CF8");
+
+    public string ApproveButtonText =>
+        string.Equals(PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase) && !string.Equals(PaymentStatus, "verified", StringComparison.OrdinalIgnoreCase)
+            ? "Collect Cash & Print"
+            : "Approve & Print";
 }

@@ -24,6 +24,8 @@ public partial class PrinterSetupViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<PrinterItem> Printers { get; } = new();
 
+    public bool HasNoPrinters => Printers.Count == 0;
+
     [ObservableProperty]
     private string _storeName = "Print Infinity — Flagship Store #1";
 
@@ -61,6 +63,8 @@ public partial class PrinterSetupViewModel : ObservableObject, IDisposable
         StoreId = _authService.CurrentStoreId;
         StorekeeperEmail = _authService.CurrentUser?.Email ?? "storekeeper@printinfinity.in";
 
+        Printers.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasNoPrinters));
+
         StartPeriodicQueuePing();
     }
 
@@ -87,10 +91,12 @@ public partial class PrinterSetupViewModel : ObservableObject, IDisposable
                 Printers.Add(item);
             }
 
+            Program.Log($"PrinterSetupViewModel: Detected {installed.Count} Windows printers; {Printers.Count(p => p.IsOnline)} online; synced with Store {StoreId}");
             StatusMessage = $"Found {Printers.Count} installed printer(s). Status active.";
         }
         catch (Exception ex)
         {
+            Program.Log($"PrinterSetupViewModel Error: {ex}");
             StatusMessage = $"Error detecting printers: {ex.Message}";
         }
         finally
@@ -145,6 +151,29 @@ public partial class PrinterSetupViewModel : ObservableObject, IDisposable
         {
             IsSavingAll = false;
         }
+    }
+
+    /// <summary>Removes a printer card from the local list (does not delete from Supabase).</summary>
+    public void RemovePrinter(PrinterItem printer)
+    {
+        Printers.Remove(printer);
+        StatusMessage = $"{Printers.Count} printer(s) in list.";
+    }
+
+    /// <summary>Manually adds a custom printer entry by name without a Windows scan.</summary>
+    public void AddCustomPrinter(string printerName)
+    {
+        var item = new PrinterItem
+        {
+            WindowsPrinterName = printerName,
+            DisplayName = printerName,
+            PortName = "MANUAL",
+            Type = "bw",
+            Connection = "usb"
+        };
+        Printers.Add(item);
+        NotificationMessage = $"Added '{printerName}'. Configure and click Save to Cloud.";
+        StatusMessage = $"{Printers.Count} printer(s) in list.";
     }
 
     [RelayCommand]

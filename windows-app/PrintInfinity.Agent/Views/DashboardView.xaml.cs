@@ -1,6 +1,7 @@
 using System;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using PrintInfinity.Agent.Models;
 using PrintInfinity.Agent.Services;
 using PrintInfinity.Agent.ViewModels;
@@ -34,27 +35,31 @@ public sealed partial class DashboardView : UserControl
         };
     }
 
-    private void OnViewSelectionChanged(object sender, SelectionChangedEventArgs e)
+    // ── Tab Switching ─────────────────────────────────────────────────────
+
+    private void SelectTab(string tab)
     {
-        if (ViewSelector.SelectedIndex == 0)
+        QueueSection.Visibility    = tab == "Queue"    ? Visibility.Visible : Visibility.Collapsed;
+        PrintersSection.Visibility = tab == "Printers" ? Visibility.Visible : Visibility.Collapsed;
+        AuditSection.Visibility    = tab == "Audit"    ? Visibility.Visible : Visibility.Collapsed;
+
+        BtnTabQueue.IsChecked    = tab == "Queue";
+        BtnTabPrinters.IsChecked = tab == "Printers";
+        BtnTabAudit.IsChecked    = tab == "Audit";
+    }
+
+    private void OnTabQueueClick(object sender, RoutedEventArgs e)    => SelectTab("Queue");
+    private async void OnTabPrintersClick(object sender, RoutedEventArgs e)
+    {
+        SelectTab("Printers");
+        if (PrinterSetupVm.Printers.Count == 0)
         {
-            QueueSection.Visibility = Visibility.Visible;
-            PrintersSection.Visibility = Visibility.Collapsed;
-            AuditSection.Visibility = Visibility.Collapsed;
-        }
-        else if (ViewSelector.SelectedIndex == 1)
-        {
-            QueueSection.Visibility = Visibility.Collapsed;
-            PrintersSection.Visibility = Visibility.Visible;
-            AuditSection.Visibility = Visibility.Collapsed;
-        }
-        else if (ViewSelector.SelectedIndex == 2)
-        {
-            QueueSection.Visibility = Visibility.Collapsed;
-            PrintersSection.Visibility = Visibility.Collapsed;
-            AuditSection.Visibility = Visibility.Visible;
+            await PrinterSetupVm.LoadPrintersAsync();
         }
     }
+    private void OnTabAuditClick(object sender, RoutedEventArgs e)    => SelectTab("Audit");
+
+    // ── Job Actions ───────────────────────────────────────────────────────
 
     private async void OnApproveJobClick(object sender, RoutedEventArgs e)
     {
@@ -80,6 +85,8 @@ public sealed partial class DashboardView : UserControl
             }
         }
     }
+
+    // ── Window Controls ───────────────────────────────────────────────────
 
     private void OnMinimizeToTrayClick(object sender, RoutedEventArgs e)
     {

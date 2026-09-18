@@ -7,210 +7,270 @@
     xmlns:models="using:PrintInfinity.Agent.Models"
     mc:Ignorable="d">
 
-    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <StackPanel Spacing="20" MaxWidth="980" HorizontalAlignment="Stretch">
 
-        <!-- Top Header & Navigation Bar -->
-        <Border Grid.Row="0" 
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" 
-                Padding="24,16" 
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" 
-                BorderThickness="0,0,0,1">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+        <!-- Status Notifications -->
+        <InfoBar IsOpen="{x:Bind ViewModel.HasNotification, Mode=OneWay}"
+                 Severity="Informational"
+                 Message="{x:Bind ViewModel.NotificationMessage, Mode=OneWay}" />
 
-                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                    <Border Background="#EEF2FF" CornerRadius="8" Width="36" Height="36">
-                        <FontIcon Glyph="&#xE749;" FontSize="18" Foreground="#4F46E5" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                    </Border>
-                    <StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="Print Infinity Agent" FontSize="18" FontWeight="Bold" />
-                            <Border Background="#E0E7FF" CornerRadius="10" Padding="8,2">
-                                <TextBlock Text="{x:Bind ViewModel.StoreName, Mode=OneWay}" Foreground="#3730A3" FontSize="11" FontWeight="SemiBold" />
-                            </Border>
-                        </StackPanel>
-                        <TextBlock Text="{x:Bind ViewModel.StorekeeperEmail, Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" />
+        <!-- Section Header + Action Toolbar -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel>
+                <TextBlock Text="Hardware Printers &amp; Cloud Mapping"
+                           FontSize="22" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="Tag each printer as Color or B&amp;W, set connection type, then save to Supabase."
+                           Foreground="#4B5563" FontSize="13" Margin="0,3,0,0"/>
+            </StackPanel>
+
+            <!-- Toolbar -->
+            <StackPanel Grid.Column="1" Orientation="Horizontal"
+                        Spacing="8" VerticalAlignment="Center">
+
+                <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}"
+                           Foreground="#374151" FontSize="12"
+                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+
+                <!-- Add Custom Printer -->
+                <Button Click="OnAddCustomPrinterClick"
+                        ToolTipService.ToolTip="Add a custom printer manually"
+                        Background="#1B3124"
+                        BorderBrush="#10B981"
+                        BorderThickness="1"
+                        CornerRadius="10"
+                        Padding="12,8">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE710;" FontSize="14" Foreground="#10B981"/>
+                        <TextBlock Text="Add Printer" FontSize="13" Foreground="#10B981"/>
                     </StackPanel>
-                </StackPanel>
+                </Button>
 
-                <!-- Action Controls -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                    <!-- Heartbeat indicator -->
-                    <Border Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="8" Padding="10,6">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <Ellipse Width="8" Height="8" Fill="#10B981" />
-                            <TextBlock Text="Spooler Live Ping: 5s" FontSize="12" Foreground="#065F46" FontWeight="SemiBold" />
-                        </StackPanel>
-                    </Border>
-
-                    <Button Command="{x:Bind ViewModel.LoadPrintersCommand}" ToolTipService.ToolTip="Rescan Windows Printers">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE72C;" FontSize="14" />
-                            <TextBlock Text="Scan Printers" />
-                        </StackPanel>
-                    </Button>
-
-                    <Button Style="{ThemeResource AccentButtonStyle}" 
-                            Command="{x:Bind ViewModel.SaveAllCommand}" 
-                            ToolTipService.ToolTip="Save all printer configurations to Supabase">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE74E;" FontSize="14" />
-                            <TextBlock Text="Save All to Cloud" />
-                        </StackPanel>
-                    </Button>
-
-                    <Button Command="{x:Bind ViewModel.LogoutCommand}" ToolTipService.ToolTip="Sign out of storekeeper account">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xF3B1;" FontSize="14" />
-                            <TextBlock Text="Sign Out" />
-                        </StackPanel>
-                    </Button>
-                </StackPanel>
-            </Grid>
-        </Border>
-
-        <!-- Main Content Area -->
-        <ScrollViewer Grid.Row="1" Padding="24">
-            <StackPanel Spacing="16" MaxWidth="1050" HorizontalAlignment="Stretch">
-                
-                <!-- Status Notifications -->
-                <InfoBar IsOpen="{x:Bind ViewModel.HasNotification, Mode=OneWay}"
-                         Severity="Informational"
-                         Message="{x:Bind ViewModel.NotificationMessage, Mode=OneWay}" />
-
-                <!-- Section Header -->
-                <Grid Margin="0,4,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel>
-                        <TextBlock Text="Windows Installed Printers &amp; Cloud Mapping" FontSize="18" FontWeight="SemiBold" />
-                        <TextBlock Text="Tag each printer as Color or B&amp;W, assign connection type, and save directly to Supabase." 
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="13" Margin="0,2,0,0" />
+                <!-- Scan Windows Printers -->
+                <Button Command="{x:Bind ViewModel.LoadPrintersCommand, Mode=OneWay}"
+                        ToolTipService.ToolTip="Scan Windows for installed printers"
+                        Background="#1E2235"
+                        BorderBrush="#334155"
+                        CornerRadius="10"
+                        Padding="12,8">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE72C;" FontSize="14" Foreground="#94A3B8"/>
+                        <TextBlock Text="Scan Printers" FontSize="13" Foreground="#94A3B8"/>
                     </StackPanel>
-                    <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" 
-                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="12" VerticalAlignment="Center" />
-                </Grid>
+                </Button>
 
-                <!-- Printers List -->
-                <ItemsControl ItemsSource="{x:Bind ViewModel.Printers, Mode=OneWay}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="models:PrinterItem">
-                            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="12"
-                                    Padding="20"
-                                    Margin="0,0,0,12">
-                                <Grid>
+                <!-- Save All to Cloud -->
+                <Button Command="{x:Bind ViewModel.SaveAllCommand, Mode=OneWay}"
+                        ToolTipService.ToolTip="Save all printer configurations to Supabase"
+                        Background="#6366F1"
+                        CornerRadius="10"
+                        Padding="12,8">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE74E;" FontSize="14" Foreground="White"/>
+                        <TextBlock Text="Save All to Cloud"
+                                   FontSize="13" Foreground="White"
+                                   FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- Printers List -->
+        <ItemsControl ItemsSource="{x:Bind ViewModel.Printers, Mode=OneWay}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="models:PrinterItem">
+                    <Border CornerRadius="14" Padding="22"
+                            Margin="0,0,0,14"
+                            Background="#161627"
+                            BorderBrush="#1E2235"
+                            BorderThickness="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="260"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="210"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Printer Info -->
+                            <StackPanel Grid.Column="0" Spacing="8"
+                                        VerticalAlignment="Center"
+                                        Padding="0,0,16,0">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Border CornerRadius="8" Width="36" Height="36"
+                                            Background="#1E1A40">
+                                        <FontIcon Glyph="&#xEBD2;" FontSize="18"
+                                                  Foreground="#818CF8"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                                    </Border>
+                                    <TextBlock Text="{x:Bind WindowsPrinterName}"
+                                               FontSize="14" FontWeight="SemiBold"
+                                               Foreground="White"
+                                               TextWrapping="Wrap"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Spacing="6"
+                                            Margin="46,0,0,0">
+                                    <TextBlock Text="Port:" FontSize="11" Foreground="#374151"/>
+                                    <TextBlock Text="{x:Bind PortName}"
+                                               FontSize="11" Foreground="#4B5563"/>
+                                </StackPanel>
+
+                                <!-- Status Badge -->
+                                <Border Margin="46,2,0,0" CornerRadius="6"
+                                        Padding="8,3" HorizontalAlignment="Left"
+                                        Background="#1E2235">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Ellipse Width="7" Height="7"
+                                                 Fill="{x:Bind StatusBadgeColor, Mode=OneWay}"/>
+                                        <TextBlock Text="{x:Bind StatusText, Mode=OneWay}"
+                                                   FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="#94A3B8"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- Configuration -->
+                            <StackPanel Grid.Column="1" Spacing="14"
+                                        VerticalAlignment="Center" Padding="12,0">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="Friendly Cloud Name"
+                                               FontSize="11" Foreground="#4B5563"/>
+                                    <TextBox PlaceholderText="e.g. Counter 1 B&amp;W Laser"
+                                             Text="{x:Bind DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             Background="#0B0B14"
+                                             Foreground="White"
+                                             BorderBrush="#1E2235"
+                                             CornerRadius="8"
+                                             Padding="10,8"/>
+                                </StackPanel>
+
+                                <Grid ColumnSpacing="16">
                                     <Grid.ColumnDefinitions>
-                                        <!-- Column 0: Printer Info & Queue Status -->
-                                        <ColumnDefinition Width="320" />
-                                        <!-- Column 1: Tags (Color & Connection) -->
-                                        <ColumnDefinition Width="*" />
-                                        <!-- Column 2: Save Action & Cloud Status -->
-                                        <ColumnDefinition Width="200" />
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
 
-                                    <!-- Printer Info & Spooler Status -->
-                                    <StackPanel Grid.Column="0" Spacing="6" VerticalAlignment="Center" Padding="0,0,16,0">
-                                        <StackPanel Orientation="Horizontal" Spacing="10">
-                                            <FontIcon Glyph="&#xE749;" FontSize="22" Foreground="#4F46E5" VerticalAlignment="Center" />
-                                            <TextBlock Text="{x:Bind WindowsPrinterName}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    <!-- Color / B&W -->
+                                    <StackPanel Grid.Column="0" Spacing="5">
+                                        <TextBlock Text="PRINT TYPE" FontSize="10"
+                                                   Foreground="#374151"
+                                                   FontWeight="SemiBold"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="12">
+                                            <RadioButton Content="B&amp;W"
+                                                         IsChecked="{x:Bind IsBw, Mode=TwoWay}"
+                                                         GroupName="{x:Bind WindowsPrinterName}"
+                                                         Foreground="#CBD5E1"/>
+                                            <RadioButton Content="Color"
+                                                         IsChecked="{x:Bind IsColor, Mode=TwoWay}"
+                                                         GroupName="{x:Bind WindowsPrinterName}"
+                                                         Foreground="#CBD5E1"/>
                                         </StackPanel>
-
-                                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="32,2,0,0">
-                                            <TextBlock Text="Port:" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-                                            <TextBlock Text="{x:Bind PortName}" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                        </StackPanel>
-
-                                        <!-- Live Queue Status Badge -->
-                                        <Border Margin="32,4,0,0" CornerRadius="6" Padding="8,3" HorizontalAlignment="Left" Background="#F1F5F9">
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <Ellipse Width="8" Height="8" Fill="{x:Bind StatusBadgeColor, Mode=OneWay}" />
-                                                <TextBlock Text="{x:Bind StatusText, Mode=OneWay}" FontSize="12" FontWeight="SemiBold" Foreground="#334155" />
-                                            </StackPanel>
-                                        </Border>
                                     </StackPanel>
 
-                                    <!-- Tags & Configuration Controls -->
-                                    <StackPanel Grid.Column="1" Spacing="12" VerticalAlignment="Center" Padding="12,0">
-                                        <!-- Friendly Display Name -->
-                                        <TextBox Header="Friendly Cloud Name" 
-                                                 PlaceholderText="e.g. Counter 1 B&amp;W Laser" 
-                                                 Text="{x:Bind DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-
-                                            <!-- Color / B&W Tag -->
-                                            <StackPanel Grid.Column="0" Spacing="4">
-                                                <TextBlock Text="Print Type" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                <StackPanel Orientation="Horizontal" Spacing="16">
-                                                    <RadioButton Content="B&amp;W (₹3)" IsChecked="{x:Bind IsBw, Mode=TwoWay}" GroupName="{x:Bind WindowsPrinterName}" />
-                                                    <RadioButton Content="Color (₹10)" IsChecked="{x:Bind IsColor, Mode=TwoWay}" GroupName="{x:Bind WindowsPrinterName}" />
-                                                </StackPanel>
-                                            </StackPanel>
-
-                                            <!-- Connection Tag -->
-                                            <StackPanel Grid.Column="1" Spacing="4">
-                                                <TextBlock Text="Connection" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                <StackPanel Orientation="Horizontal" Spacing="16">
-                                                    <RadioButton Content="USB" IsChecked="{x:Bind IsUsb, Mode=TwoWay}" GroupName="{x:Bind PortName}" />
-                                                    <RadioButton Content="WiFi / LAN" IsChecked="{x:Bind IsWifi, Mode=TwoWay}" GroupName="{x:Bind PortName}" />
-                                                </StackPanel>
-                                            </StackPanel>
-                                        </Grid>
-                                    </StackPanel>
-
-                                    <!-- Save Action & Cloud Feedback -->
-                                    <StackPanel Grid.Column="2" Spacing="8" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                        <Button Style="{ThemeResource AccentButtonStyle}"
-                                                HorizontalAlignment="Stretch"
-                                                Click="OnSaveSinglePrinterClick"
-                                                DataContext="{x:Bind}">
-                                            <Grid>
-                                                <TextBlock Text="Save to Cloud" FontWeight="SemiBold" />
-                                                <ProgressRing IsActive="{x:Bind IsSaving, Mode=OneWay}" Width="16" Height="16" />
-                                            </Grid>
-                                        </Button>
-
-                                        <TextBlock Text="{x:Bind LastSavedAtText, Mode=OneWay}" 
-                                                   FontSize="11" 
-                                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" 
-                                                   HorizontalAlignment="Center" 
-                                                   TextAlignment="Center" />
+                                    <!-- Connection -->
+                                    <StackPanel Grid.Column="1" Spacing="5">
+                                        <TextBlock Text="CONNECTION" FontSize="10"
+                                                   Foreground="#374151"
+                                                   FontWeight="SemiBold"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="12">
+                                            <RadioButton Content="USB"
+                                                         IsChecked="{x:Bind IsUsb, Mode=TwoWay}"
+                                                         GroupName="{x:Bind PortName}"
+                                                         Foreground="#CBD5E1"/>
+                                            <RadioButton Content="WiFi"
+                                                         IsChecked="{x:Bind IsWifi, Mode=TwoWay}"
+                                                         GroupName="{x:Bind PortName}"
+                                                         Foreground="#CBD5E1"/>
+                                        </StackPanel>
                                     </StackPanel>
                                 </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </StackPanel>
-        </ScrollViewer>
+                            </StackPanel>
 
-        <!-- Footer -->
-        <Border Grid.Row="2" 
-                Padding="16,10" 
-                Background="{ThemeResource LayerFillColorDefaultBrush}" 
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" 
-                BorderThickness="0,1,0,0">
-            <TextBlock Text="Connected to Supabase Project ynfjuqqkrqgimttpgumx • Windows Print Subsystem Native Integration" 
-                       FontSize="11" 
-                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" 
-                       HorizontalAlignment="Center" />
+                            <!-- Save + Delete -->
+                            <StackPanel Grid.Column="2" Spacing="10"
+                                        VerticalAlignment="Center"
+                                        HorizontalAlignment="Right">
+                                <!-- Save -->
+                                <Button HorizontalAlignment="Stretch"
+                                        Height="40" CornerRadius="10"
+                                        Background="#6366F1"
+                                        Click="OnSaveSinglePrinterClick"
+                                        DataContext="{x:Bind}">
+                                    <Grid>
+                                        <TextBlock Text="Save to Cloud"
+                                                   FontWeight="Bold" FontSize="13"
+                                                   Foreground="White"
+                                                   HorizontalAlignment="Center"/>
+                                        <ProgressRing IsActive="{x:Bind IsSaving, Mode=OneWay}"
+                                                      Width="16" Height="16"
+                                                      Foreground="White"
+                                                      HorizontalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+
+                                <!-- Delete -->
+                                <Button HorizontalAlignment="Stretch"
+                                        Height="36" CornerRadius="10"
+                                        Background="#2A1010"
+                                        BorderBrush="#7F1D1D"
+                                        BorderThickness="1"
+                                        Click="OnDeletePrinterClick"
+                                        DataContext="{x:Bind}"
+                                        ToolTipService.ToolTip="Remove printer from list">
+                                    <StackPanel Orientation="Horizontal" Spacing="6"
+                                                HorizontalAlignment="Center">
+                                        <FontIcon Glyph="&#xE74D;" FontSize="13"
+                                                  Foreground="#F87171"/>
+                                        <TextBlock Text="Delete" FontSize="13"
+                                                   Foreground="#F87171"/>
+                                    </StackPanel>
+                                </Button>
+
+                                <TextBlock Text="{x:Bind LastSavedAtText, Mode=OneWay}"
+                                           FontSize="10" Foreground="#374151"
+                                           HorizontalAlignment="Center"
+                                           TextAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Empty State -->
+        <Border Visibility="{x:Bind ViewModel.HasNoPrinters, Mode=OneWay}"
+                CornerRadius="16" Padding="48"
+                Background="#131322"
+                BorderBrush="#1E2235"
+                BorderThickness="1">
+            <StackPanel HorizontalAlignment="Center" Spacing="12">
+                <Border CornerRadius="32" Width="64" Height="64"
+                        HorizontalAlignment="Center"
+                        Background="#1E2235">
+                    <FontIcon Glyph="&#xEBD2;" FontSize="28"
+                              Foreground="#374151"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Text="No Printers Found"
+                           FontSize="18" FontWeight="SemiBold"
+                           Foreground="#D1D5DB"
+                           HorizontalAlignment="Center"/>
+                <TextBlock Text="Click 'Scan Printers' to detect Windows printers, or 'Add Printer' to add one manually."
+                           Foreground="#4B5563" FontSize="13"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
         </Border>
-    </Grid>
+
+        <TextBlock Text="Connected to Supabase · Windows Print Subsystem Native Integration"
+                   FontSize="11" Foreground="#1F2937"
+                   HorizontalAlignment="Center"
+                   Margin="0,8,0,0"/>
+    </StackPanel>
 </UserControl>

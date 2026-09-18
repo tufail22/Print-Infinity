@@ -48,8 +48,12 @@ export default function AdminPage() {
   // Auth state
   const [session, setSession] = useState<any>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [storeName, setStoreName] = useState("");
+  const [storeAddress, setStoreAddress] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
@@ -89,11 +93,15 @@ export default function AdminPage() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Load store details
-  const loadStoreData = async () => {
+  // Load store details dynamically for logged-in storekeeper
+  const loadStoreData = async (userId?: string) => {
     try {
       setLoadingData(true);
-      const res = await fetch("/api/store/manage?store_id=a0000000-0000-0000-0000-000000000001");
+      const uid = userId || session?.user?.id;
+      const url = uid
+        ? `/api/store/manage?user_id=${uid}`
+        : `/api/store/manage?store_id=a0000000-0000-0000-0000-000000000001`;
+      const res = await fetch(url);
       const json = await res.json();
       if (json.success && json.store) {
         setStore(json.store);
@@ -107,8 +115,8 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
-    if (session) {
-      loadStoreData();
+    if (session?.user?.id) {
+      loadStoreData(session.user.id);
     }
   }, [session]);
 
@@ -120,7 +128,7 @@ export default function AdminPage() {
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password,
       });
 
@@ -128,9 +136,87 @@ export default function AdminPage() {
         setAuthError(error.message || "Invalid storekeeper email or password.");
       } else if (data.session) {
         setSession(data.session);
+        if (data.session.user?.id) {
+          await loadStoreData(data.session.user.id);
+        }
       }
     } catch (err: any) {
       setAuthError(err.message || "Sign in failed. Please try again.");
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  // Handle Registration
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+
+    if (!storeName.trim()) {
+      setAuthError("Please enter your Shop / Store Name.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setAuthError("Passwords do not match.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setAuthError("Password must be at least 6 characters.");
+      return;
+    }
+
+    setIsAuthenticating(true);
+
+    try {
+      const { data: authData, error: signUpErr } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
+
+      if (signUpErr || !authData.user) {
+        throw new Error(signUpErr?.message || "Registration failed. Check your email or password.");
+      }
+
+      // Provision new store record via API
+      const regRes = await fetch("/api/store/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: authData.user.id,
+          store_name: storeName.trim(),
+          address: storeAddress.trim() || null,
+        }),
+      });
+
+      const regJson = await regRes.json();
+      if (!regRes.ok || !regJson.success) {
+        throw new Error(regJson.error || "Failed to create store record.");
+      }
+
+      if (authData.session) {
+        setSession(authData.session);
+        setStore(regJson.store);
+      } else {
+        // Sign in to establish active session
+        const { data: signInData } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+        if (signInData?.session) {
+          setSession(signInData.session);
+          setStore(regJson.store);
+        } else {
+          setAuthMode("login");
+          setFeedbackMessage({
+            type: "success",
+            text: "Shop registered successfully! Please sign in with your password.",
+          });
+        }
+      }
+    } catch (err: any) {
+      setAuthError(err.message || "Registration failed. Please try again.");
     } finally {
       setIsAuthenticating(false);
     }
@@ -257,18 +343,53 @@ export default function AdminPage() {
           /* ================================================================= */
           /* STOREKEEPER LOGIN VIEW                                            */
           /* ================================================================= */
-          <div className="max-w-md mx-auto pt-8">
-            <div className="bg-white rounded-3xl p-7 shadow-xl border border-slate-200/90 space-y-6">
-              <div className="text-center space-y-2">
-                <div className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center mx-auto shadow-xs">
-                  <Lock className="w-7 h-7" aria-hidden="true" />
+          <div className="max-w-md mx-auto pt-4 pb-12">
+            <div className="bg-white rounded-3xl p-7 shadow-xl border border-slate-200/90 space-y-5">
+              {/* Header */}
+              <div className="text-center space-y-1.5">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center mx-auto shadow-xs">
+                  <Lock className="w-6 h-6" aria-hidden="true" />
                 </div>
                 <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                  Storekeeper Authentication
+                  Storekeeper Portal
                 </h2>
-                <p className="text-xs text-slate-600">
-                  Sign in with your Print Infinity storekeeper account to adjust pricing and printers.
+                <p className="text-xs text-slate-500 font-medium">
+                  {authMode === "login"
+                    ? "Sign in to manage your shop's pricing, branding, and connected printers."
+                    : "Register your shop PC and storekeeper account on Supabase backend."}
                 </p>
+              </div>
+
+              {/* Tab Switcher */}
+              <div className="grid grid-cols-2 p-1 bg-slate-100/80 rounded-2xl border border-slate-200/60">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("login");
+                    setAuthError(null);
+                  }}
+                  className={`py-2 text-xs font-black rounded-xl transition-all ${
+                    authMode === "login"
+                      ? "bg-white text-indigo-700 shadow-sm"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("register");
+                    setAuthError(null);
+                  }}
+                  className={`py-2 text-xs font-black rounded-xl transition-all ${
+                    authMode === "register"
+                      ? "bg-white text-indigo-700 shadow-sm"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  Register New Shop
+                </button>
               </div>
 
               {authError && (
@@ -282,71 +403,208 @@ export default function AdminPage() {
                 </div>
               )}
 
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div>
-                  <label
-                    htmlFor="admin-email"
-                    className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1"
-                  >
-                    Storekeeper Email
-                  </label>
-                  <div className="relative">
-                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" aria-hidden="true" />
-                    <input
-                      id="admin-email"
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="storekeeper@printinfinity.in"
-                      className="min-h-[44px] w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="admin-password"
-                    className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1"
-                  >
-                    Password
-                  </label>
-                  <div className="relative">
-                    <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" aria-hidden="true" />
-                    <input
-                      id="admin-password"
-                      type="password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••••••"
-                      className="min-h-[44px] w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isAuthenticating}
-                  aria-label="Log in to admin portal"
-                  className="min-h-[48px] w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2"
+              {feedbackMessage && (
+                <div
+                  className={`p-3.5 rounded-2xl text-xs font-bold flex items-start gap-2 ${
+                    feedbackMessage.type === "success"
+                      ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
+                      : "bg-rose-50 border border-rose-200 text-rose-800"
+                  }`}
                 >
-                  {isAuthenticating ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />
-                      <span>Authenticating...</span>
-                    </>
-                  ) : (
-                    <>
-                      <ShieldCheck className="w-4 h-4" aria-hidden="true" />
-                      <span>Sign In to Control Center</span>
-                    </>
-                  )}
-                </button>
-              </form>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                  <p className="flex-1">{feedbackMessage.text}</p>
+                </div>
+              )}
+
+              {authMode === "login" ? (
+                /* LOGIN FORM */
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div>
+                    <label
+                      htmlFor="admin-email"
+                      className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1"
+                    >
+                      Storekeeper Email
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" aria-hidden="true" />
+                      <input
+                        id="admin-email"
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="storekeeper@printinfinity.in"
+                        className="min-h-[44px] w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="admin-password"
+                      className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1"
+                    >
+                      Password
+                    </label>
+                    <div className="relative">
+                      <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" aria-hidden="true" />
+                      <input
+                        id="admin-password"
+                        type="password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••••••"
+                        className="min-h-[44px] w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isAuthenticating}
+                    aria-label="Log in to admin portal"
+                    className="min-h-[48px] w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2"
+                  >
+                    {isAuthenticating ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />
+                        <span>Authenticating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-4 h-4" aria-hidden="true" />
+                        <span>Sign In to Control Center</span>
+                      </>
+                    )}
+                  </button>
+                </form>
+              ) : (
+                /* REGISTRATION FORM */
+                <form onSubmit={handleRegister} className="space-y-3.5">
+                  <div>
+                    <label
+                      htmlFor="register-store-name"
+                      className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1"
+                    >
+                      Shop / Store Name
+                    </label>
+                    <div className="relative">
+                      <Store className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" aria-hidden="true" />
+                      <input
+                        id="register-store-name"
+                        type="text"
+                        required
+                        value={storeName}
+                        onChange={(e) => setStoreName(e.target.value)}
+                        placeholder="e.g. Apex Print &amp; Cyber Hub"
+                        className="min-h-[44px] w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="register-address"
+                      className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1"
+                    >
+                      Shop Address / Location
+                    </label>
+                    <div className="relative">
+                      <MapPin className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" aria-hidden="true" />
+                      <input
+                        id="register-address"
+                        type="text"
+                        value={storeAddress}
+                        onChange={(e) => setStoreAddress(e.target.value)}
+                        placeholder="Shop 5, Main College Road"
+                        className="min-h-[44px] w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="register-email"
+                      className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1"
+                    >
+                      Storekeeper Email
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" aria-hidden="true" />
+                      <input
+                        id="register-email"
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="storekeeper@printinfinity.in"
+                        className="min-h-[44px] w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label
+                        htmlFor="register-password"
+                        className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1"
+                      >
+                        Password
+                      </label>
+                      <input
+                        id="register-password"
+                        type="password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••••••"
+                        className="min-h-[44px] w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="register-confirm-password"
+                        className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1"
+                      >
+                        Confirm
+                      </label>
+                      <input
+                        id="register-confirm-password"
+                        type="password"
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="••••••••••••"
+                        className="min-h-[44px] w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-indigo-600"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isAuthenticating}
+                    aria-label="Register new storekeeper account"
+                    className="min-h-[48px] w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
+                  >
+                    {isAuthenticating ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />
+                        <span>Registering Shop...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" aria-hidden="true" />
+                        <span>Create Shop &amp; Storekeeper</span>
+                      </>
+                    )}
+                  </button>
+                </form>
+              )}
 
               <div className="text-center pt-2 border-t border-slate-100 text-[11px] text-slate-500 font-medium">
-                Uses the same Supabase Auth credentials as your Windows App Agent.
+                Uses Supabase Auth backend • Syncs directly with your Windows Agent.
               </div>
             </div>
           </div>

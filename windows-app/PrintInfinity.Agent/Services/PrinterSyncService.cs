@@ -43,7 +43,14 @@ public class PrinterSyncService : IPrinterSyncService
     public async Task MergeWithInstalledPrintersAsync(List<PrinterItem> localPrinters, Guid storeId)
     {
         var remoteList = await GetStorePrintersAsync(storeId);
-        var remoteMap = remoteList.ToDictionary(r => r.WindowsPrinterName, StringComparer.OrdinalIgnoreCase);
+        var remoteMap = new Dictionary<string, PrinterRecord>(StringComparer.OrdinalIgnoreCase);
+        foreach (var r in remoteList)
+        {
+            if (!string.IsNullOrWhiteSpace(r.WindowsPrinterName))
+            {
+                remoteMap[r.WindowsPrinterName] = r;
+            }
+        }
 
         foreach (var local in localPrinters)
         {

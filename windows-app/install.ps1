@@ -16,8 +16,11 @@ Write-Host "   Print Infinity Agent - Shop PC Setup               " -ForegroundC
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host ""
 
-$sourceDir = Join-Path $PSScriptRoot "publish"
-if (-not (Test-Path $sourceDir)) {
+$sourceDir = Join-Path $PSScriptRoot "publish\win-x64"
+if (-not (Test-Path (Join-Path $sourceDir "PrintInfinity.Agent.exe"))) {
+    $sourceDir = Join-Path $PSScriptRoot "publish"
+}
+if (-not (Test-Path (Join-Path $sourceDir "PrintInfinity.Agent.exe"))) {
     $sourceDir = $PSScriptRoot
 }
 
@@ -77,6 +80,7 @@ $desktopShortcutPath = Join-Path $desktopPath "Print Infinity Agent.lnk"
 $shortcut = $wshShell.CreateShortcut($desktopShortcutPath)
 $shortcut.TargetPath = $installedExe
 $shortcut.WorkingDirectory = $targetDir
+$shortcut.IconLocation = "$installedExe,0"
 $shortcut.Description = "Print Infinity Cloud Printing Agent for Shopkeepers"
 $shortcut.Save()
 
@@ -89,6 +93,7 @@ $startMenuShortcutPath = Join-Path $startMenuDir "Print Infinity Agent.lnk"
 $startShortcut = $wshShell.CreateShortcut($startMenuShortcutPath)
 $startShortcut.TargetPath = $installedExe
 $startShortcut.WorkingDirectory = $targetDir
+$startShortcut.IconLocation = "$installedExe,0"
 $startShortcut.Description = "Print Infinity Cloud Printing Agent"
 $startShortcut.Save()
 

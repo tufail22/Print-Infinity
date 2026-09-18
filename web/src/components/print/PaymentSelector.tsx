@@ -1,18 +1,18 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
-import QRCode from "qrcode";
+import React from "react";
 import {
   QrCode,
   Banknote,
-  CheckCircle2,
   ShieldCheck,
-  Smartphone,
   ArrowRight,
   Sparkles,
   Loader2,
   Check,
   Zap,
+  CreditCard,
+  Clock,
+  CheckCircle2,
 } from "lucide-react";
 import { PaymentMethod } from "@/types/printJob";
 
@@ -31,109 +31,77 @@ export const PaymentSelector: React.FC<PaymentSelectorProps> = ({
   onConfirmPayment,
   isSubmitting = false,
 }) => {
-  const [upiPolling, setUpiPolling] = useState(false);
-  const [upiQrDataUrl, setUpiQrDataUrl] = useState<string | null>(null);
-
   const formattedAmount = `₹${amount.toFixed(2)}`;
-
-  // Generate UPI Intent URI
-  const upiIntentUri = `upi://pay?pa=printinfinity.store@upi&pn=Print%20Infinity&am=${amount.toFixed(
-    2
-  )}&cu=INR&tn=Print%20Job%20Payment`;
-
-  useEffect(() => {
-    if (selectedMethod === "upi") {
-      QRCode.toDataURL(
-        upiIntentUri,
-        {
-          width: 240,
-          margin: 1,
-          color: {
-            dark: "#0f172a",
-            light: "#ffffff",
-          },
-        },
-        (err, url) => {
-          if (!err && url) {
-            setUpiQrDataUrl(url);
-          }
-        }
-      );
-    }
-  }, [selectedMethod, upiIntentUri]);
-
-  // Simulate payment confirmation polling
-  const handleSimulateUpiSuccess = () => {
-    setUpiPolling(true);
-    setTimeout(() => {
-      setUpiPolling(false);
-      onConfirmPayment("upi", "UPI_REF_" + Math.random().toString(36).substring(2, 10).toUpperCase());
-    }, 1200);
-  };
 
   return (
     <div className="w-full space-y-4">
       {/* Total Amount Glass Card */}
-      <div className="glass-panel p-4 rounded-3xl border border-white/90 flex items-center justify-between shadow-sm">
+      <div className="glass-panel p-5 rounded-3xl border border-white/90 flex items-center justify-between shadow-sm bg-white/70 backdrop-blur-md">
         <div>
-          <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">
+          <p className="text-[11px] text-slate-500 font-extrabold uppercase tracking-wider">
             Total Amount Due
           </p>
-          <p className="text-2xl font-black text-indigo-950 mt-0.5 tracking-tight">
+          <p className="text-3xl font-black text-slate-900 mt-0.5 tracking-tight">
             {formattedAmount}
           </p>
         </div>
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200/80 shadow-xs">
+        <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200/80 shadow-xs">
           <ShieldCheck className="w-4 h-4 text-emerald-600" />
           <span>Verified Safe</span>
         </div>
       </div>
 
-      {/* Two Large Premium Buttons */}
+      {/* Two Large Selection Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-        {/* UPI Option */}
+        {/* UPI / Online Option */}
         <button
           type="button"
           onClick={() => onSelectMethod("upi")}
-          aria-label="Select Pay with UPI (Instant Auto-Dispatch)"
-          className={`glass-panel-interactive relative p-5 rounded-3xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 ${
+          aria-label="Pay with UPI or Cards via Razorpay"
+          className={`glass-panel-interactive relative p-5 rounded-3xl text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 ${
             selectedMethod === "upi"
-              ? "border-indigo-600 bg-white/95 shadow-xl ring-2 ring-indigo-500/30"
-              : "border-slate-200 hover:border-slate-300"
+              ? "border-indigo-600 bg-white/95 shadow-xl ring-2 ring-indigo-500/30 scale-[1.01]"
+              : "border-slate-200/80 bg-white/60 hover:bg-white/80 hover:border-slate-300"
           }`}
         >
           {selectedMethod === "upi" && (
-            <div className="absolute top-4 right-4 w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs shadow-xs font-bold" aria-hidden="true">
+            <div
+              className="absolute top-4 right-4 w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs shadow-xs font-bold"
+              aria-hidden="true"
+            >
               <Check className="w-3.5 h-3.5" />
             </div>
           )}
 
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 mb-3" aria-hidden="true">
+          <div
+            className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-blue-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 mb-3"
+            aria-hidden="true"
+          >
             <QrCode className="w-6 h-6" />
           </div>
 
           <h3 className="font-extrabold text-sm text-slate-900 tracking-tight">
-            Pay with UPI
+            Pay Online (UPI / Cards)
           </h3>
-          <p className="text-xs text-slate-600 mt-1 font-medium">
-            Scan with GPay, PhonePe, Paytm or any UPI App
+          <p className="text-xs text-slate-600 mt-1 font-medium leading-relaxed">
+            Google Pay, PhonePe, Paytm, BHIM, Cards &amp; NetBanking
           </p>
 
-          <div className="mt-3 inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+          <div className="mt-3.5 inline-flex items-center gap-1.5 text-[11px] font-bold text-indigo-700 bg-indigo-50/90 px-2.5 py-1 rounded-lg border border-indigo-100">
             <Zap className="w-3 h-3 text-amber-500" aria-hidden="true" />
-            <span>Instant Auto-Dispatch</span>
+            <span>Instant Auto-Print Approval</span>
           </div>
         </button>
 
-        {/* Cash Option */}
+        {/* Cash at Counter Option */}
         <button
           type="button"
           onClick={() => onSelectMethod("cash")}
-          aria-label="Select Pay with Cash at Store Counter"
-          className={`glass-panel-interactive relative p-5 rounded-3xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 ${
+          aria-label="Pay Cash at Store Counter"
+          className={`glass-panel-interactive relative p-5 rounded-3xl text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 ${
             selectedMethod === "cash"
-              ? "border-emerald-600 bg-white/95 shadow-xl ring-2 ring-emerald-500/30"
-              : "border-slate-200 hover:border-slate-300"
+              ? "border-emerald-600 bg-white/95 shadow-xl ring-2 ring-emerald-500/30 scale-[1.01]"
+              : "border-slate-200/80 bg-white/60 hover:bg-white/80 hover:border-slate-300"
           }`}
         >
           {selectedMethod === "cash" && (
@@ -147,109 +115,141 @@ export const PaymentSelector: React.FC<PaymentSelectorProps> = ({
           </div>
 
           <h3 className="font-extrabold text-sm text-slate-900 tracking-tight">
-            Pay with Cash at Counter
+            Pay Cash at Counter
           </h3>
-          <p className="text-xs text-slate-500 mt-1 font-medium">
-            Pay directly in cash to the storekeeper before printing
+          <p className="text-xs text-slate-600 mt-1 font-medium leading-relaxed">
+            Pay the storekeeper in person at the shop counter
           </p>
 
-          <div className="mt-3 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-            <span>Storekeeper Confirms</span>
+          <div className="mt-3.5 inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-800 bg-emerald-50/90 px-2.5 py-1 rounded-lg border border-emerald-100">
+            <Clock className="w-3 h-3 text-emerald-600" />
+            <span>Storekeeper Confirms Cash</span>
           </div>
         </button>
       </div>
 
-      {/* UPI Interactive QR View */}
+      {/* UPI / Razorpay Gateway Panel */}
       {selectedMethod === "upi" && (
-        <div className="glass-panel p-5 rounded-3xl border border-indigo-100/80 shadow-md flex flex-col items-center text-center space-y-4 animate-fadeIn">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold border border-indigo-100">
-              <Smartphone className="w-3.5 h-3.5" />
-              <span>Scan QR Code to Pay {formattedAmount}</span>
+        <div className="glass-panel p-5 rounded-3xl border border-indigo-100 shadow-lg bg-gradient-to-b from-white/95 to-indigo-50/40 text-center space-y-4 animate-fadeIn">
+          <div className="space-y-1.5">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-100/70 text-indigo-800 text-[11px] font-extrabold border border-indigo-200/60">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Razorpay Standard Checkout</span>
             </div>
-            <p className="text-xs text-slate-500 font-medium">
-              Open Google Pay, PhonePe, Paytm, or BHIM
+            <h4 className="text-base font-black text-slate-900">
+              Fast, Seamless &amp; Contactless Payment
+            </h4>
+            <p className="text-xs text-slate-500 font-medium max-w-sm mx-auto">
+              Click below to launch the official Razorpay checkout modal with dynamic UPI QR code, 1-click app payment, and debit/credit card options.
             </p>
           </div>
 
-          {/* QR Code */}
-          <div className="p-3.5 bg-white rounded-3xl border-2 border-indigo-100 shadow-inner">
-            {upiQrDataUrl ? (
-              <img
-                src={upiQrDataUrl}
-                alt="UPI Payment QR Code"
-                className="w-48 h-48 rounded-2xl object-contain mx-auto"
-              />
-            ) : (
-              <div className="w-48 h-48 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400">
-                <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-              </div>
-            )}
+          {/* Payment Method Badges */}
+          <div className="flex flex-wrap items-center justify-center gap-2 py-1">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 text-[11px] font-bold shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-green-500"></span> GPay / PhonePe
+            </span>
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 text-[11px] font-bold shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-blue-500"></span> Paytm / BHIM
+            </span>
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 text-[11px] font-bold shadow-xs">
+              <CreditCard className="w-3.5 h-3.5 text-purple-600" /> Cards &amp; NetBanking
+            </span>
           </div>
 
-          <div className="w-full space-y-2">
+          {/* Pay Button */}
+          <div className="w-full space-y-2 pt-1">
             <button
               type="button"
               id="btn-confirm-upi"
               disabled={isSubmitting}
               onClick={() => onConfirmPayment("upi")}
-              className="glass-button-primary w-full py-3.5 px-4 rounded-2xl text-white font-extrabold text-xs shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+              className="glass-button-primary w-full py-4 px-6 rounded-2xl text-white font-black text-sm shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 focus:outline-none focus:ring-4 focus:ring-indigo-300"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Initiating Razorpay UPI Gateway...</span>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Opening Razorpay Checkout...</span>
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4 text-amber-300" />
-                  <span>Pay via Razorpay UPI ({formattedAmount})</span>
+                  <span>Pay with Razorpay ({formattedAmount})</span>
+                  <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </button>
 
-            <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500 font-medium">
+            <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 font-medium">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Razorpay Secure Test Gateway • Instant Webhook Verification</span>
+              <span>Razorpay Secured • Real-time Cloud Confirmation to Shop PC</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* Cash Confirm Button & Move to Next Step */}
+      {/* Cash at Counter Panel */}
       {selectedMethod === "cash" && (
-        <div className="glass-panel p-4 rounded-3xl border border-emerald-100/90 shadow-sm space-y-3 animate-fadeIn">
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 mt-0.5">
-              <Banknote className="w-4.5 h-4.5" />
+        <div className="glass-panel p-5 rounded-3xl border border-emerald-100 shadow-md bg-gradient-to-b from-white/95 to-emerald-50/30 space-y-4 animate-fadeIn">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100/70 text-emerald-800 text-[11px] font-extrabold border border-emerald-200/60">
+              <Banknote className="w-3.5 h-3.5 text-emerald-600" />
+              <span>In-Person Cash Workflow</span>
             </div>
-            <div>
-              <p className="text-xs font-bold text-slate-800">Pay Cash at Store Counter</p>
-              <p className="text-xs text-slate-500 mt-0.5 font-medium">
-                Submit this job now. The storekeeper will verify your cash payment on their Windows terminal to approve and print.
+            <h4 className="text-base font-black text-slate-900">
+              Pay Directly at the Store Counter
+            </h4>
+          </div>
+
+          {/* 3 Simple Steps */}
+          <div className="grid grid-cols-1 gap-2.5 text-left">
+            <div className="flex items-start gap-3 p-2.5 rounded-2xl bg-white/80 border border-slate-100">
+              <span className="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-black flex items-center justify-center flex-shrink-0 mt-0.5">
+                1
+              </span>
+              <p className="text-xs text-slate-700 font-medium leading-relaxed">
+                Click <span className="font-bold text-slate-900">Confirm &amp; Submit Job</span> below. Your documents are uploaded securely.
+              </p>
+            </div>
+            <div className="flex items-start gap-3 p-2.5 rounded-2xl bg-white/80 border border-slate-100">
+              <span className="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-black flex items-center justify-center flex-shrink-0 mt-0.5">
+                2
+              </span>
+              <p className="text-xs text-slate-700 font-medium leading-relaxed">
+                Head to the shop counter and show your live order tracking screen.
+              </p>
+            </div>
+            <div className="flex items-start gap-3 p-2.5 rounded-2xl bg-white/80 border border-slate-100">
+              <span className="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-black flex items-center justify-center flex-shrink-0 mt-0.5">
+                3
+              </span>
+              <p className="text-xs text-slate-700 font-medium leading-relaxed">
+                Pay <span className="font-bold text-emerald-700">{formattedAmount}</span> cash. Storekeeper clicks &ldquo;Collect Cash &amp; Print&rdquo; on their PC and prints immediately!
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            id="btn-confirm-cash"
-            disabled={isSubmitting}
-            onClick={() => onConfirmPayment("cash")}
-            className="w-full py-3.5 px-4 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Submitting Request...</span>
-              </>
-            ) : (
-              <>
-                <span>Confirm Cash Payment &amp; Submit ({formattedAmount})</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
-          </button>
+          {/* Submit Button */}
+          <div className="pt-1">
+            <button
+              type="button"
+              id="btn-confirm-cash"
+              disabled={isSubmitting}
+              onClick={() => onConfirmPayment("cash")}
+              className="w-full py-4 px-6 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-black text-sm shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 focus:outline-none focus:ring-4 focus:ring-slate-300"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Submitting Print Request...</span>
+                </>
+              ) : (
+                <>
+                  <span>Confirm Job &amp; Pay Cash ({formattedAmount})</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </div>
         </div>
       )}
     </div>

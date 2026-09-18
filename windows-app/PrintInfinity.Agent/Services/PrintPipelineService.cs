@@ -105,52 +105,83 @@ public class PrintPipelineService : IPrintPipelineService
                 .Where(p => p.IsOnline == true)
                 .Get();
 
-            var matchingPrinters = printerResponse.Models;
+            var matchingPrinters = printerResponse.Models ?? new List<PrinterRecord>();
             PrinterItem? selectedPrinter = null;
 
             if (matchingPrinters.Count == 0)
             {
-                var modeTitle = targetMode == "color" ? "Color" : "Black & White";
-                var friendlyError = $"No online {modeTitle} printer found. Please check that your printer is turned on, has paper, and is connected to this PC.";
-                
-                jobResponse.Status = "failed";
-                jobResponse.RejectionReason = friendlyError;
-                jobResponse.UpdatedAt = DateTime.UtcNow;
-                await _authService.Client.From<PrintJobRecord>().Update(jobResponse);
+                // Fallback 1: Check any online printer in store regardless of type
+                var anyOnlineResp = await _authService.Client.From<PrinterRecord>()
+                    .Where(p => p.StoreId == _authService.CurrentStoreId)
+                    .Where(p => p.IsOnline == true)
+                    .Get();
 
-                NotifyEvent(jobId, "Failed", friendlyError, isError: true);
-                _systemTrayService.ShowNotification("Printer Offline", friendlyError);
-                return;
-            }
-            else if (matchingPrinters.Count == 1)
-            {
-                var p = matchingPrinters[0];
-                selectedPrinter = new PrinterItem
+                if (anyOnlineResp?.Models != null && anyOnlineResp.Models.Count > 0)
                 {
-                    WindowsPrinterName = p.WindowsPrinterName,
-                    DisplayName = p.Name,
-                    Type = p.Type,
-                    Connection = p.Connection,
-                    IsOnline = p.IsOnline
-                };
+                    matchingPrinters = anyOnlineResp.Models;
+                }
             }
-            else
-            {
-                // Multiple online printers match: prompt storekeeper from strictly this filtered list
-                var candidates = matchingPrinters.Select(p => new PrinterItem
-                {
-                    WindowsPrinterName = p.WindowsPrinterName,
-                    DisplayName = p.Name,
-                    Type = p.Type,
-                    Connection = p.Connection,
-                    IsOnline = p.IsOnline
-                }).ToList();
 
-                selectedPrinter = await task.SelectPrinterCallback(candidates);
-                if (selectedPrinter == null)
+            if (matchingPrinters.Count == 0)
+            {
+                // Fallback 2: Check local Windows printers directly
+                var localWinService = new WindowsPrinterService();
+                var localPrinters = await localWinService.GetInstalledPrintersAsync();
+                var candidate = localPrinters.FirstOrDefault(p => string.Equals(p.Type, targetMode, StringComparison.OrdinalIgnoreCase) && p.IsOnline)
+                             ?? localPrinters.FirstOrDefault(p => p.IsOnline)
+                             ?? localPrinters.FirstOrDefault();
+
+                if (candidate != null)
                 {
-                    NotifyEvent(jobId, "Pending", "Printer selection cancelled by storekeeper.", isError: false);
+                    selectedPrinter = candidate;
+                }
+                else
+                {
+                    var modeTitle = targetMode == "color" ? "Color" : "Black & White";
+                    var friendlyError = $"No online {modeTitle} printer found. Please check that your printer is turned on, has paper, and is connected to this PC.";
+                    
+                    jobResponse.Status = "failed";
+                    jobResponse.RejectionReason = friendlyError;
+                    jobResponse.UpdatedAt = DateTime.UtcNow;
+                    await _authService.Client.From<PrintJobRecord>().Update(jobResponse);
+
+                    NotifyEvent(jobId, "Failed", friendlyError, isError: true);
+                    _systemTrayService.ShowNotification("Printer Offline", friendlyError);
                     return;
+                }
+            }
+            else if (selectedPrinter == null)
+            {
+                if (matchingPrinters.Count == 1)
+                {
+                    var p = matchingPrinters[0];
+                    selectedPrinter = new PrinterItem
+                    {
+                        WindowsPrinterName = p.WindowsPrinterName,
+                        DisplayName = p.Name,
+                        Type = p.Type,
+                        Connection = p.Connection,
+                        IsOnline = p.IsOnline
+                    };
+                }
+                else
+                {
+                    // Multiple online printers match: prompt storekeeper from strictly this filtered list
+                    var candidates = matchingPrinters.Select(p => new PrinterItem
+                    {
+                        WindowsPrinterName = p.WindowsPrinterName,
+                        DisplayName = p.Name,
+                        Type = p.Type,
+                        Connection = p.Connection,
+                        IsOnline = p.IsOnline
+                    }).ToList();
+
+                    selectedPrinter = await task.SelectPrinterCallback(candidates);
+                    if (selectedPrinter == null)
+                    {
+                        NotifyEvent(jobId, "Pending", "Printer selection cancelled by storekeeper.", isError: false);
+                        return;
+                    }
                 }
             }
 
@@ -159,6 +190,25 @@ public class PrintPipelineService : IPrintPipelineService
             jobResponse.UpdatedAt = DateTime.UtcNow;
             await _authService.Client.From<PrintJobRecord>().Update(jobResponse);
             NotifyEvent(jobId, "Approved", $"Approved. Routing to {selectedPrinter.DisplayName}...");
+
+            // Auto-verify corresponding payment if still pending
+            try
+            {
+                var payResp = await _authService.Client.From<PaymentRecord>()
+                    .Where(x => x.PrintJobId == jobId)
+                    .Get();
+                var payment = payResp.Models.FirstOrDefault();
+                if (payment != null && payment.Status != "verified")
+                {
+                    payment.Status = "verified";
+                    payment.UpdatedAt = DateTime.UtcNow;
+                    await _authService.Client.From<PaymentRecord>().Update(payment);
+                }
+            }
+            catch (Exception payEx)
+            {
+                System.Diagnostics.Debug.WriteLine($"Notice updating payment status: {payEx.Message}");
+            }
 
             // 4. Request fresh short-lived signed URL (expires in 60s) from Supabase Storage
             var storagePath = jobResponse.StoragePath;
@@ -270,7 +320,7 @@ public class PrintPipelineService : IPrintPipelineService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[PrintPipeline] Error processing job {jobId}: {ex.Message}");
+            Program.Log($"[PrintPipeline] EXCEPTION processing job {jobId}: {ex.GetType().FullName}: {ex.Message}\n{ex.StackTrace}");
             var friendlyExError = "Unable to process document for printing. Please check your internet connection and printer cable/Wi-Fi.";
             
             try

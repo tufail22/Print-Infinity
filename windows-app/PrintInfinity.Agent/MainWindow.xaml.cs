@@ -1,14 +1,20 @@
 using System;
+using System.Runtime.InteropServices;
+using Microsoft.UI;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using PrintInfinity.Agent.Services;
 using PrintInfinity.Agent.Services.Printing;
 using PrintInfinity.Agent.ViewModels;
 using PrintInfinity.Agent.Views;
+using WinRT.Interop;
 
 namespace PrintInfinity.Agent;
 
 /// <summary>
-/// Main window orchestrating Login, Live Queue, and Printer Setup with System Tray background persistence.
+/// Main window — orchestrates Login → Dashboard with System Tray background persistence.
+/// Window controls: Minimize/Maximize work normally via the OS titlebar.
+/// The ✕ (close) button is intercepted to hide to tray instead of exiting.
 /// </summary>
 public sealed partial class MainWindow : Window
 {
@@ -26,27 +32,32 @@ public sealed partial class MainWindow : Window
     {
         this.InitializeComponent();
 
+        // ── Window Title & Size ────────────────────────────────────────────
         this.Title = "Print Infinity Agent";
+
         if (this.AppWindow != null)
         {
             this.AppWindow.Title = "Print Infinity Agent";
-            this.AppWindow.Resize(new Windows.Graphics.SizeInt32(1000, 720));
+            this.AppWindow.Resize(new Windows.Graphics.SizeInt32(1100, 740));
+            SetWindowIcon();
         }
 
-        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        var hwnd = WindowNative.GetWindowHandle(this);
         Program.Log($"MainWindow initialized. HWND=0x{hwnd:X}");
 
-        _credentialStorage = new CredentialStorageService();
-        _authService = new SupabaseAuthService(_credentialStorage);
+        // ── Service Wiring ────────────────────────────────────────────────
+        _credentialStorage   = new CredentialStorageService();
+        _authService         = new SupabaseAuthService(_credentialStorage);
         _windowsPrinterService = new WindowsPrinterService();
-        _printerSyncService = new PrinterSyncService(_authService);
-        _systemTrayService = new SystemTrayService();
-        _jobQueueService = new JobQueueService(_authService);
-        _printEngine = new Services.Printing.WindowsPrintEngine();
-        _spoolerMonitor = new Services.Printing.PrintSpoolerMonitor();
-        _printPipelineService = new PrintPipelineService(_authService, _printEngine, _spoolerMonitor, _systemTrayService);
+        _printerSyncService  = new PrinterSyncService(_authService);
+        _systemTrayService   = new SystemTrayService();
+        _jobQueueService     = new JobQueueService(_authService);
+        _printEngine         = new Services.Printing.WindowsPrintEngine();
+        _spoolerMonitor      = new Services.Printing.PrintSpoolerMonitor();
+        _printPipelineService = new PrintPipelineService(
+            _authService, _printEngine, _spoolerMonitor, _systemTrayService);
 
-        // Initialize native system tray icon and background persistence
+        // ── System Tray Setup ─────────────────────────────────────────────
         _systemTrayService.Initialize(this);
 
         _systemTrayService.RestoreRequested += () =>
@@ -67,7 +78,8 @@ public sealed partial class MainWindow : Window
             });
         };
 
-        // Minimize / Close to Tray behavior: keep running in background
+        // ── Close → Hide to Tray (NOT exit) ─────────────────────────────
+        // Only intercept the ✕ button; Minimize/Maximize are NOT affected.
         if (this.AppWindow != null)
         {
             this.AppWindow.Closing += (sender, args) =>
@@ -80,14 +92,44 @@ public sealed partial class MainWindow : Window
         NavigateToLogin();
     }
 
+    /// <summary>
+    /// Sets the window and taskbar icon from the bundled AppLogo.png asset.
+    /// </summary>
+    private void SetWindowIcon()
+    {
+        try
+        {
+            var iconPath = System.IO.Path.Combine(
+                AppContext.BaseDirectory, "Assets", "AppLogo.png");
+
+            if (System.IO.File.Exists(iconPath))
+            {
+                // Use the HWND-based icon loading for unpackaged-compatible apps
+                var hwnd = WindowNative.GetWindowHandle(this);
+                // WinUI 3 AppWindow.SetIcon supports a file path directly
+                this.AppWindow.SetIcon(iconPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            Program.Log($"[WARN] Icon load failed: {ex.Message}");
+        }
+    }
+
     private void NavigateToLogin()
     {
+        if (!DispatcherQueue.HasThreadAccess)
+        {
+            DispatcherQueue.TryEnqueue(NavigateToLogin);
+            return;
+        }
+
         var loginVm = new LoginViewModel(_authService);
         var loginView = new LoginView { ViewModel = loginVm };
 
         loginVm.LoginSucceeded += () =>
         {
-            NavigateToDashboard();
+            DispatcherQueue.TryEnqueue(NavigateToDashboard);
         };
 
         MainContentContainer.Content = loginView;
@@ -98,12 +140,20 @@ public sealed partial class MainWindow : Window
 
     private void NavigateToDashboard()
     {
+        if (!DispatcherQueue.HasThreadAccess)
+        {
+            DispatcherQueue.TryEnqueue(NavigateToDashboard);
+            return;
+        }
+
+        Program.Log("MainWindow: Navigating to Dashboard...");
         var queueVm = new LiveQueueViewModel(_jobQueueService, _printPipelineService, _systemTrayService);
         var setupVm = new PrinterSetupViewModel(_authService, _windowsPrinterService, _printerSyncService);
         var dashboardView = new DashboardView(queueVm, setupVm, _systemTrayService);
 
         dashboardView.LoggedOut += () =>
         {
+            Program.Log("DashboardView: Logged out, navigating to Login...");
             queueVm.Dispose();
             setupVm.Dispose();
             NavigateToLogin();
@@ -111,14 +161,13 @@ public sealed partial class MainWindow : Window
 
         MainContentContainer.Content = dashboardView;
 
-        // Launch Realtime Queue listener and Printer scanner concurrently
         _ = queueVm.StartAsync(_authService.CurrentStoreId);
         _ = setupVm.InitializeAsync();
+        Program.Log($"MainWindow: Dashboard active for store {_authService.CurrentStoreId}");
     }
 
     /// <summary>
-    /// Starts the application silently in the Windows system tray without showing the main window.
-    /// Used when launched at Windows boot/startup with --tray.
+    /// Starts the application minimized to tray (launch-at-startup mode).
     /// </summary>
     public void StartMinimizedToTray()
     {
@@ -126,8 +175,6 @@ public sealed partial class MainWindow : Window
         _systemTrayService.HideToTray();
         _systemTrayService.ShowNotification(
             "Print Infinity Agent",
-            "Agent started in background and is monitoring the print queue."
-        );
+            "Agent started and is monitoring the print queue in the background.");
     }
 }
-

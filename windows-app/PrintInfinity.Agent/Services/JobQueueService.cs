@@ -44,6 +44,7 @@ public class JobQueueService : IJobQueueService
 
         // 1. Initial query for existing pending_approval jobs
         var existing = await FetchPendingJobsAsync(storeId);
+        Program.Log($"JobQueueService: StartListeningAsync fetched {existing.Count} job(s) for store {storeId}");
         foreach (var job in existing)
         {
             if (_knownJobIds.Add(job.Id))
@@ -112,6 +113,7 @@ public class JobQueueService : IJobQueueService
         {
             if (_knownJobIds.Add(job.Id))
             {
+                Program.Log($"JobQueueService: New incoming job arrived! ID={job.Id}, Color={job.ColorMode}, Price={job.FormattedPrice}, Method={job.PaymentMethod}");
                 JobArrived?.Invoke(this, job);
             }
         }
@@ -131,17 +133,30 @@ public class JobQueueService : IJobQueueService
 
         try
         {
-            var response = await _authService.Client.From<PrintJobRecord>()
+            // 1. Fetch pending_approval jobs (orders ready for storekeeper approval)
+            var approvalResponse = await _authService.Client.From<PrintJobRecord>()
                 .Where(x => x.StoreId == storeId)
                 .Where(x => x.Status == "pending_approval")
                 .Get();
 
-            var records = response.Models;
+            // 2. Also fetch pending_payment jobs (cash at counter or active submissions)
+            var paymentResponse = await _authService.Client.From<PrintJobRecord>()
+                .Where(x => x.StoreId == storeId)
+                .Where(x => x.Status == "pending_payment")
+                .Get();
+
+            var records = (approvalResponse.Models ?? new List<PrintJobRecord>())
+                .Concat(paymentResponse.Models ?? new List<PrintJobRecord>())
+                .GroupBy(r => r.Id)
+                .Select(g => g.First())
+                .OrderByDescending(r => r.CreatedAt)
+                .ToList();
+
             if (records.Count == 0) return new List<QueueItem>();
 
-            // Query corresponding payments for exact amounts
+            // 3. Query corresponding payments for exact amounts and method/status
             var jobIds = records.Select(r => r.Id).ToList();
-            var paymentsMap = new Dictionary<Guid, decimal>();
+            var paymentsMap = new Dictionary<Guid, (decimal Amount, string Method, string Status)>();
             try
             {
                 var paymentsResponse = await _authService.Client.From<PaymentRecord>().Get();
@@ -151,7 +166,7 @@ public class JobQueueService : IJobQueueService
                     {
                         if (jobIds.Contains(p.PrintJobId))
                         {
-                            paymentsMap[p.PrintJobId] = p.Amount;
+                            paymentsMap[p.PrintJobId] = (p.Amount, p.Method, p.Status);
                         }
                     }
                 }
@@ -165,14 +180,18 @@ public class JobQueueService : IJobQueueService
             foreach (var r in records)
             {
                 decimal price;
-                if (paymentsMap.TryGetValue(r.Id, out var paymentAmount) && paymentAmount > 0)
+                string method = "cash";
+                string status = "pending";
+
+                if (paymentsMap.TryGetValue(r.Id, out var payInfo))
                 {
-                    price = paymentAmount;
+                    price = payInfo.Amount > 0 ? payInfo.Amount : CalculateDefaultPrice(r);
+                    method = !string.IsNullOrWhiteSpace(payInfo.Method) ? payInfo.Method : "cash";
+                    status = !string.IsNullOrWhiteSpace(payInfo.Status) ? payInfo.Status : "pending";
                 }
                 else
                 {
-                    var rate = string.Equals(r.ColorMode, "color", StringComparison.OrdinalIgnoreCase) ? 10.00m : 3.00m;
-                    price = r.Copies * r.PageCount * rate;
+                    price = CalculateDefaultPrice(r);
                 }
 
                 items.Add(new QueueItem
@@ -184,6 +203,8 @@ public class JobQueueService : IJobQueueService
                     PageCount = r.PageCount > 0 ? r.PageCount : 1,
                     Duplex = r.Duplex,
                     Price = price,
+                    PaymentMethod = method,
+                    PaymentStatus = status,
                     CreatedAt = r.CreatedAt
                 });
             }
@@ -195,6 +216,12 @@ public class JobQueueService : IJobQueueService
             System.Diagnostics.Debug.WriteLine($"Failed to fetch pending jobs: {ex.Message}");
             return new List<QueueItem>();
         }
+    }
+
+    private static decimal CalculateDefaultPrice(PrintJobRecord r)
+    {
+        var rate = string.Equals(r.ColorMode, "color", StringComparison.OrdinalIgnoreCase) ? 10.00m : 3.00m;
+        return (r.Copies > 0 ? r.Copies : 1) * (r.PageCount > 0 ? r.PageCount : 1) * rate;
     }
 
     public async Task<bool> ApproveJobAsync(Guid jobId)
@@ -213,6 +240,26 @@ public class JobQueueService : IJobQueueService
             job.UpdatedAt = DateTime.UtcNow;
 
             await _authService.Client.From<PrintJobRecord>().Update(job);
+
+            // Auto-verify corresponding payment if still pending (e.g. storekeeper confirmed cash)
+            try
+            {
+                var payResp = await _authService.Client.From<PaymentRecord>()
+                    .Where(x => x.PrintJobId == jobId)
+                    .Get();
+                var payment = payResp.Models.FirstOrDefault();
+                if (payment != null && payment.Status != "verified")
+                {
+                    payment.Status = "verified";
+                    payment.UpdatedAt = DateTime.UtcNow;
+                    await _authService.Client.From<PaymentRecord>().Update(payment);
+                }
+            }
+            catch (Exception payEx)
+            {
+                System.Diagnostics.Debug.WriteLine($"Notice updating payment status: {payEx.Message}");
+            }
+
             _knownJobIds.Remove(jobId);
             JobRemoved?.Invoke(this, jobId);
             return true;

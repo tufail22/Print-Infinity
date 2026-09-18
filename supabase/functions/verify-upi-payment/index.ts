@@ -67,7 +67,16 @@ serve(async (req: Request) => {
       );
     }
 
-    const expectedSignature = await computeHmacSha256(RAZORPAY_WEBHOOK_SECRET, rawBody);
+    const webhookSecret = RAZORPAY_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      console.error("[verify-upi-payment] Missing RAZORPAY_WEBHOOK_SECRET or RAZORPAY_KEY_SECRET");
+      return new Response(
+        JSON.stringify({ error: "Server configuration error: Webhook secret missing" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      );
+    }
+
+    const expectedSignature = await computeHmacSha256(webhookSecret, rawBody);
 
     if (!timingSafeEqual(signature.toLowerCase(), expectedSignature.toLowerCase())) {
       console.error(

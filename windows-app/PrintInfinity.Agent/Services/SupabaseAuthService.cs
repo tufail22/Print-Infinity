@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Supabase.Gotrue;
@@ -15,7 +16,7 @@ public interface ISupabaseAuthService
     bool IsAuthenticated { get; }
 
     Task InitializeAsync();
-    Task<bool> RegisterAsync(string email, string password, Guid? storeId = null);
+    Task<bool> RegisterAsync(string email, string password, string? storeName = null);
     Task<bool> LoginAsync(string email, string password, bool rememberMe = true);
     Task<bool> TryRestoreSessionAsync();
     Task LogoutAsync();
@@ -52,37 +53,59 @@ public class SupabaseAuthService : ISupabaseAuthService
         _isInitialized = true;
     }
 
-    public async Task<bool> RegisterAsync(string email, string password, Guid? storeId = null)
+    public async Task<bool> RegisterAsync(string email, string password, string? storeName = null)
     {
         await InitializeAsync();
-        var targetStoreId = storeId ?? AppConfig.StoreId;
 
         // Step 1: Sign up in Supabase Auth
         var session = await Client.Auth.SignUp(email, password);
         if (session?.User == null)
         {
-            throw new Exception("Supabase Auth sign-up did not return a user. Check if email confirmation is required.");
+            throw new Exception("Supabase Auth sign-up did not return a user. Please check your email format or credentials.");
         }
 
         var userId = Guid.Parse(session.User.Id!);
+        var name = !string.IsNullOrWhiteSpace(storeName) ? storeName.Trim() : "Print Infinity Shop";
 
-        // Step 2: Ensure storekeeper record exists linked to auth.users and stores
+        // Step 2: Register store & storekeeper profile via RPC
         try
         {
-            var storekeeper = new StorekeeperRecord
+            var rpcParams = new Dictionary<string, object>
             {
-                Id = userId,
-                StoreId = targetStoreId,
-                Role = "storekeeper"
+                { "p_user_id", userId },
+                { "p_store_name", name },
+                { "p_bw_price", 3.00 },
+                { "p_color_price", 10.00 }
             };
-            await Client.From<StorekeeperRecord>().Insert(storekeeper);
+            await Client.Rpc("register_new_store", rpcParams);
+            Program.Log($"SupabaseAuthService: Successfully registered new store '{name}' for user {userId}");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Storekeeper profile insert note: {ex.Message}");
+            Program.Log($"[WARN] register_new_store note: {ex.Message}");
         }
 
-        CurrentStoreId = targetStoreId;
+        // Step 3: Fetch assigned store record
+        try
+        {
+            var response = await Client.From<StorekeeperRecord>()
+                .Where(x => x.Id == userId)
+                .Get();
+            var record = response.Models.FirstOrDefault();
+            if (record != null && record.StoreId != Guid.Empty)
+            {
+                CurrentStoreId = record.StoreId;
+            }
+            else
+            {
+                CurrentStoreId = AppConfig.StoreId;
+            }
+        }
+        catch
+        {
+            CurrentStoreId = AppConfig.StoreId;
+        }
+
         _credentialStorage.SaveCredentials(email, password);
         return true;
     }
@@ -107,9 +130,10 @@ public class SupabaseAuthService : ISupabaseAuthService
                 .Get();
 
             var record = response.Models.FirstOrDefault();
-            if (record != null)
+            if (record != null && record.StoreId != Guid.Empty)
             {
                 CurrentStoreId = record.StoreId;
+                Program.Log($"SupabaseAuthService: User {userId} logged into Store {CurrentStoreId}");
             }
             else
             {
@@ -126,7 +150,7 @@ public class SupabaseAuthService : ISupabaseAuthService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Could not load storekeeper profile: {ex.Message}");
+            Program.Log($"[WARN] Could not load storekeeper profile: {ex.Message}");
             CurrentStoreId = AppConfig.StoreId;
         }
 
@@ -151,7 +175,7 @@ public class SupabaseAuthService : ISupabaseAuthService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Failed to restore saved session: {ex.Message}");
+            Program.Log($"Failed to restore saved session: {ex.Message}");
             _credentialStorage.ClearCredentials();
             return false;
         }

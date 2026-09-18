@@ -22,6 +22,7 @@
     <PublishSingleFile>false</PublishSingleFile>
     <Nullable>enable</Nullable>
     <LangVersion>12.0</LangVersion>
+    <ApplicationIcon>Assets\AppLogo.ico</ApplicationIcon>
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
   </PropertyGroup>
 
@@ -30,6 +31,14 @@
     <AppxManifest Include="Package.appxmanifest" Condition="'$(WindowsPackageType)' == 'MSIX'">
       <SubType>Designer</SubType>
     </AppxManifest>
+  </ItemGroup>
+
+  <!-- Brand assets: copy to output so AppWindow.SetIcon can locate them -->
+  <ItemGroup>
+    <Content Include="Assets\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>Assets\%(Filename)%(Extension)</TargetPath>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

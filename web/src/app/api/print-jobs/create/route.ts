@@ -125,10 +125,13 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Database Operations with Supabase Client
-    // Use service role if available for reliable server execution, fallback to anon
+    // Use service role if available for reliable server execution, fallback to anon with customer token
     const clientKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
     const supabase = createClient(SUPABASE_URL, clientKey, {
       auth: { persistSession: false, autoRefreshToken: false },
+      global: {
+        headers: customer_token ? { "x-customer-token": customer_token } : {},
+      },
     });
 
     // Verify store exists and is active
@@ -145,12 +148,14 @@ export async function POST(req: NextRequest) {
 
     const storageExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
-    // 4. Create print job (always pending_payment initially)
+    // 4. Create print job (cash at counter orders immediately advance to pending_approval)
+    const initialStatus = method === "cash" ? "pending_approval" : "pending_payment";
+
     const { data: job, error: jobErr } = await supabase
       .from("print_jobs")
       .insert({
         store_id,
-        status: "pending_payment",
+        status: initialStatus,
         color_mode,
         copies: numCopies,
         paper_size: sanitizedPaperSize,

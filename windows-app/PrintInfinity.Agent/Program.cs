@@ -129,61 +129,76 @@ public static class Program
             .Where(x => x.Status == "pending_approval")
             .Get();
 
-        var job = jobs.Models.FirstOrDefault();
-        if (job == null)
+        var pendingJobs = jobs.Models;
+        if (pendingJobs.Count == 0)
         {
             Log("[TEST-PIPELINE] No pending_approval jobs found for store.");
             return;
         }
 
-        Log($"[TEST-PIPELINE] [1/5 Review Request in Queue]: ID={job.Id}, ColorMode={job.ColorMode}, Copies={job.Copies}, PaperSize={job.PaperSize}, Duplex={job.Duplex} (Document content preview omitted for Zero-Disk Privacy)");
+        Log($"[TEST-PIPELINE] Found {pendingJobs.Count} pending_approval job(s) in queue. Beginning storekeeper sequential review & approval...");
 
-        var queueItem = new Models.QueueItem
+        foreach (var job in pendingJobs)
         {
-            Id = job.Id,
-            ColorMode = job.ColorMode ?? "bw",
-            Copies = job.Copies,
-            PaperSize = job.PaperSize ?? "A4",
-            Duplex = job.Duplex,
-            PageCount = job.PageCount,
-            Price = 2.00m,
-            CreatedAt = job.CreatedAt
-        };
+            Log($"\n=======================================================");
+            Log($"[TEST-PIPELINE] Processing Job {job.Id} (ColorMode: {job.ColorMode?.ToUpperInvariant()})");
+            Log($"=======================================================");
+            Log($"[TEST-PIPELINE] [1/5 Review Request in Queue]: ID={job.Id}, ColorMode={job.ColorMode}, Copies={job.Copies}, PaperSize={job.PaperSize}, Duplex={job.Duplex} (Document preview omitted for Zero-Disk Privacy)");
 
-        var tcs = new TaskCompletionSource<bool>();
-        pipelineService.PipelineEventOccurred += (s, e) =>
-        {
-            Log($"[TEST-PIPELINE-EVENT] [{e.Status}] {e.Message} (IsError={e.IsError})");
-            if (string.Equals(e.Status, "completed", StringComparison.OrdinalIgnoreCase))
+            var queueItem = new Models.QueueItem
             {
-                tcs.TrySetResult(true);
-            }
-            else if (string.Equals(e.Status, "failed", StringComparison.OrdinalIgnoreCase) || e.IsError)
+                Id = job.Id,
+                ColorMode = job.ColorMode ?? "bw",
+                Copies = job.Copies,
+                PaperSize = job.PaperSize ?? "A4",
+                Duplex = job.Duplex,
+                PageCount = job.PageCount,
+                Price = job.ColorMode == "color" ? 10.00m : 2.00m,
+                CreatedAt = job.CreatedAt
+            };
+
+            var tcs = new TaskCompletionSource<bool>();
+            EventHandler<PrintPipelineEvent>? eventHandler = null;
+            eventHandler = (s, e) =>
             {
-                tcs.TrySetResult(false);
+                if (e.JobId == job.Id)
+                {
+                    Log($"[TEST-PIPELINE-EVENT] [{e.Status}] {e.Message} (IsError={e.IsError})");
+                    if (string.Equals(e.Status, "completed", StringComparison.OrdinalIgnoreCase))
+                    {
+                        tcs.TrySetResult(true);
+                    }
+                    else if (string.Equals(e.Status, "failed", StringComparison.OrdinalIgnoreCase) || e.IsError)
+                    {
+                        tcs.TrySetResult(false);
+                    }
+                }
+            };
+
+            pipelineService.PipelineEventOccurred += eventHandler;
+
+            Log($"[TEST-PIPELINE] [2/5 Storekeeper Approves Job {job.Id}]: Enqueueing into PrintPipelineService...");
+            await pipelineService.EnqueueJobAsync(queueItem, candidates => Task.FromResult(candidates.FirstOrDefault()));
+
+            Log("[TEST-PIPELINE] [3/5 In-Memory Download, Auto-Printer Selection & Silent Spooling in Progress]...");
+            var completed = await tcs.Task;
+            pipelineService.PipelineEventOccurred -= eventHandler;
+            Log($"[TEST-PIPELINE] Pipeline finished for Job {job.Id} with Success={completed}");
+
+            Log("[TEST-PIPELINE] [4/5 Verifying In-Memory Cleanup & Storage Deletion]...");
+            var updatedJob = await authService.Client.From<Models.PrintJobRecord>()
+                .Where(x => x.Id == job.Id)
+                .Single();
+
+            Log($"[TEST-PIPELINE] [5/5 Status Transition]: Database status = '{updatedJob?.Status}', StoragePath = '{updatedJob?.StoragePath}'");
+            if (updatedJob != null && updatedJob.Status == "completed" && string.IsNullOrEmpty(updatedJob.StoragePath))
+            {
+                Log($"[TEST-PIPELINE] *** SUCCESS: Job {job.Id} ({job.ColorMode}) verified! File cleared from storage, job marked completed, customer Realtime alerted. ***\n");
             }
-        };
-
-        Log("[TEST-PIPELINE] [2/5 Storekeeper Approves Job]: Enqueueing into PrintPipelineService...");
-        await pipelineService.EnqueueJobAsync(queueItem, candidates => Task.FromResult(candidates.FirstOrDefault()));
-
-        Log("[TEST-PIPELINE] [3/5 In-Memory Download, Auto-Printer Selection & Silent Spooling in Progress]...");
-        var completed = await tcs.Task;
-        Log($"[TEST-PIPELINE] Pipeline finished with Success={completed}");
-
-        Log("[TEST-PIPELINE] [4/5 Verifying In-Memory Cleanup & Storage Deletion]...");
-        var updatedJob = await authService.Client.From<Models.PrintJobRecord>()
-            .Where(x => x.Id == job.Id)
-            .Single();
-
-        Log($"[TEST-PIPELINE] [5/5 Status Transition]: Database status = '{updatedJob?.Status}', StoragePath = '{updatedJob?.StoragePath}'");
-        if (updatedJob != null && updatedJob.Status == "completed" && string.IsNullOrEmpty(updatedJob.StoragePath))
-        {
-            Log("[TEST-PIPELINE] *** SUCCESS: All steps verified! File cleared from storage, job marked completed, customer Realtime alerted. ***");
-        }
-        else
-        {
-            Log($"[TEST-PIPELINE] Note: Status={updatedJob?.Status}, StoragePath={updatedJob?.StoragePath}");
+            else
+            {
+                Log($"[TEST-PIPELINE] Note: Status={updatedJob?.Status}, StoragePath={updatedJob?.StoragePath}");
+            }
         }
     }
 
