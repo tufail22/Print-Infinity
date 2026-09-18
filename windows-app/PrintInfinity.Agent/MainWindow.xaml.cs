@@ -26,6 +26,16 @@ public sealed partial class MainWindow : Window
     {
         this.InitializeComponent();
 
+        this.Title = "Print Infinity Agent";
+        if (this.AppWindow != null)
+        {
+            this.AppWindow.Title = "Print Infinity Agent";
+            this.AppWindow.Resize(new Windows.Graphics.SizeInt32(1000, 720));
+        }
+
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        Program.Log($"MainWindow initialized. HWND=0x{hwnd:X}");
+
         _credentialStorage = new CredentialStorageService();
         _authService = new SupabaseAuthService(_credentialStorage);
         _windowsPrinterService = new WindowsPrinterService();

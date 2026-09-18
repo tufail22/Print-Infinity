@@ -79,10 +79,9 @@
                 </Button>
 
                 <!-- Mode Toggle -->
-                <Button Style="{ThemeResource HyperlinkButtonStyle}"
-                        HorizontalAlignment="Center"
-                        Content="{x:Bind ViewModel.ModeToggleText, Mode=OneWay}"
-                        Command="{x:Bind ViewModel.ToggleModeCommand}" />
+                <HyperlinkButton HorizontalAlignment="Center"
+                                 Content="{x:Bind ViewModel.ModeToggleText, Mode=OneWay}"
+                                 Command="{x:Bind ViewModel.ToggleModeCommand}" />
 
                 <!-- Footer Security Badge -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6" Margin="0,8,0,0">

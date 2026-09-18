@@ -14,6 +14,14 @@ public partial class App : Application
     public App()
     {
         this.InitializeComponent();
+        this.UnhandledException += App_UnhandledException;
+    }
+
+    private void App_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
+    {
+        e.Handled = true;
+        Program.Log($"[FATAL] App.UnhandledException: {e.Exception}");
+        Program.ShowFatalDialog("XAML Runtime Exception", e.Exception);
     }
 
     /// <summary>
@@ -22,22 +30,35 @@ public partial class App : Application
     /// <param name="args">Details about the launch request and process.</param>
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
-        _mainWindow = new MainWindow();
-
-        string[] cmdArgs = Environment.GetCommandLineArgs();
-        bool startInTray = cmdArgs.Any(a =>
-            a.Equals("--tray", StringComparison.OrdinalIgnoreCase) ||
-            a.Equals("-tray", StringComparison.OrdinalIgnoreCase) ||
-            a.Equals("--minimized", StringComparison.OrdinalIgnoreCase) ||
-            a.Equals("-minimized", StringComparison.OrdinalIgnoreCase));
-
-        if (startInTray)
+        try
         {
-            _mainWindow.StartMinimizedToTray();
+            Program.Log("App.OnLaunched invoked. Creating MainWindow...");
+            _mainWindow = new MainWindow();
+            Program.Log("MainWindow instance created successfully.");
+
+            string[] cmdArgs = Environment.GetCommandLineArgs();
+            bool startInTray = cmdArgs.Any(a =>
+                a.Equals("--tray", StringComparison.OrdinalIgnoreCase) ||
+                a.Equals("-tray", StringComparison.OrdinalIgnoreCase) ||
+                a.Equals("--minimized", StringComparison.OrdinalIgnoreCase) ||
+                a.Equals("-minimized", StringComparison.OrdinalIgnoreCase));
+
+            if (startInTray)
+            {
+                Program.Log("Starting minimized to system tray...");
+                _mainWindow.StartMinimizedToTray();
+            }
+            else
+            {
+                Program.Log("Activating MainWindow...");
+                _mainWindow.Activate();
+                Program.Log("MainWindow.Activate() succeeded.");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            _mainWindow.Activate();
+            Program.Log($"[FATAL] Exception in OnLaunched: {ex}");
+            Program.ShowFatalDialog("Window Launch Error", ex);
         }
     }
 }

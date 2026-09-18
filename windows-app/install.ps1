@@ -114,7 +114,7 @@ Set-Content -Path $uninstallBat -Value $batLines -Force
 
 # Launch the application
 Write-Host "[5/5] Launching Print Infinity Agent..." -ForegroundColor White
-Start-Process -FilePath $installedExe
+Start-Process -FilePath $installedExe -WorkingDirectory $targetDir
 
 Write-Host ""
 Write-Host "======================================================" -ForegroundColor Green
