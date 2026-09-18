@@ -110,10 +110,17 @@ print-infinity/
 
 ## 🚀 Getting Started (Scaffold Baseline)
 
-### Prerequisites
+### Prerequisites & System Requirements
 
+#### End-User / Shop PC (Running Released Windows Agent)
+- **Zero Runtimes Required**: Release packages are 100% self-contained (bundling the .NET 8 runtime and Windows App SDK 1.5 runtime). Target PCs do **not** need .NET or Windows App SDK pre-installed.
+- **Operating System Support**:
+  - ✅ **Supported**: Windows 11 (all editions) and Windows 10 Version 1809 (Build 17763) or newer.
+  - ❌ **Unsupported**: Windows 7, Windows 8 / 8.1, or Windows 10 versions older than Build 17763 (this is the architectural minimum supported by the Windows App SDK; universal backward compatibility to Win7/8 is not supported).
+
+#### Developer Machine (Building from Source)
 - **Node.js**: v18.17+ or v20+ (recommended LTS)
-- **.NET 8 SDK**: .NET 8.0 with Windows App SDK workload (`net8.0-windows10.0.19041.0`)
+- **.NET 8 SDK**: .NET 8.0.x with Windows App SDK workload (`net8.0-windows10.0.19041.0`)
 - **Supabase CLI**: For running local database, storage, and edge functions
 
 ### Development
