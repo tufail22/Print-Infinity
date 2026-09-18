@@ -35,7 +35,7 @@ function checkRateLimit(clientIp: string): { allowed: boolean; remaining: number
   return { allowed: true, remaining: MAX_REQUESTS_PER_WINDOW - entry.count };
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });

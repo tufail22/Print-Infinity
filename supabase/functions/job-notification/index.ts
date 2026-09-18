@@ -8,7 +8,7 @@ interface WebhookPayload {
   old_record: Record<string, unknown> | null;
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
