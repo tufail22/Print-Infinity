@@ -58,6 +58,20 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
 
         _queueService.JobArrived += OnJobArrived;
         _queueService.JobRemoved += OnJobRemoved;
+        _queueService.JobApproved += (s, job) =>
+        {
+            _dispatcherQueue?.TryEnqueue(async () =>
+            {
+                var existing = PendingJobs.FirstOrDefault(j => j.Id == job.Id);
+                if (existing != null)
+                {
+                    PendingJobs.Remove(existing);
+                    JobCount = PendingJobs.Count;
+                }
+                NotificationMessage = $"Printing job ({job.Id.ToString()[..8]})...";
+                await _printPipelineService.EnqueueJobAsync(job, PromptPrinterSelectionAsync);
+            });
+        };
 
         _printPipelineService.PipelineEventOccurred += (s, e) =>
         {

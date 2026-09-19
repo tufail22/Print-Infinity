@@ -12,9 +12,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const RAZORPAY_KEY_SECRET = (
-      process.env.RAZORPAY_KEY_SECRET || "EI4nTw7sTvd1jhqG2d4W7fUi"
-    ).trim();
+    const RAZORPAY_KEY_SECRET = (process.env.RAZORPAY_KEY_SECRET || "").trim();
     const body = await req.json();
     const order_id = (body.order_id || body.razorpay_order_id || "").trim();
     const payment_id = (body.payment_id || body.razorpay_payment_id || "").trim();

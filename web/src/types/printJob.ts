@@ -91,6 +91,7 @@ export interface StoreInfo {
 export interface PrintJobRecord {
   id: string;
   store_id: string;
+  printer_id?: string | null;
   status: JobStatus;
   color_mode: ColorMode;
   copies: number;

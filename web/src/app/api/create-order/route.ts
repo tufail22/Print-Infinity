@@ -14,12 +14,9 @@ function getRazorpayCredentials() {
   const keyId = (
     process.env.RAZORPAY_KEY_ID ||
     process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
-    "rzp_test_TdU1DTwKD1f4Qe"
+    ""
   ).trim();
-  const keySecret = (
-    process.env.RAZORPAY_KEY_SECRET ||
-    "EI4nTw7sTvd1jhqG2d4W7fUi"
-  ).trim();
+  const keySecret = (process.env.RAZORPAY_KEY_SECRET || "").trim();
   return { keyId, keySecret };
 }
 
@@ -49,9 +46,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Credentials validation
-    console.log(`[create-order] Debug keys: key_id="${RAZORPAY_KEY_ID}", secret_length=${RAZORPAY_KEY_SECRET.length}, secret_prefix="${RAZORPAY_KEY_SECRET.slice(0, 3)}"`);
     if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
-      console.error("[create-order] Razorpay credentials missing from server environment");
       return NextResponse.json(
         { error: "Payment gateway credentials not configured on server" },
         { status: 500 }

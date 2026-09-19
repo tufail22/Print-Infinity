@@ -13,6 +13,7 @@ public interface IJobQueueService : IDisposable
 {
     event EventHandler<QueueItem>? JobArrived;
     event EventHandler<Guid>? JobRemoved;
+    event EventHandler<QueueItem>? JobApproved;
 
     Task StartListeningAsync(Guid storeId);
     Task<List<QueueItem>> FetchPendingJobsAsync(Guid storeId);
@@ -28,9 +29,11 @@ public class JobQueueService : IJobQueueService
     private Guid _storeId;
     private bool _isDisposed;
     private readonly HashSet<Guid> _knownJobIds = new();
+    private readonly HashSet<Guid> _dispatchedApprovedJobIds = new();
 
     public event EventHandler<QueueItem>? JobArrived;
     public event EventHandler<Guid>? JobRemoved;
+    public event EventHandler<QueueItem>? JobApproved;
 
     public JobQueueService(ISupabaseAuthService authService)
     {
@@ -124,6 +127,44 @@ public class JobQueueService : IJobQueueService
         {
             _knownJobIds.Remove(id);
             JobRemoved?.Invoke(this, id);
+        }
+
+        // Check for jobs that have transitioned to 'approved' in database
+        try
+        {
+            var approvedResponse = await _authService.Client.From<PrintJobRecord>()
+                .Where(x => x.StoreId == _storeId)
+                .Where(x => x.Status == "approved")
+                .Get();
+
+            if (approvedResponse?.Models != null)
+            {
+                foreach (var r in approvedResponse.Models)
+                {
+                    if (_dispatchedApprovedJobIds.Add(r.Id))
+                    {
+                        var queueItem = new QueueItem
+                        {
+                            Id = r.Id,
+                            ColorMode = r.ColorMode,
+                            Copies = r.Copies,
+                            PaperSize = r.PaperSize,
+                            PageCount = r.PageCount > 0 ? r.PageCount : 1,
+                            Duplex = r.Duplex,
+                            Price = CalculateDefaultPrice(r),
+                            PaymentMethod = "upi",
+                            PaymentStatus = "verified",
+                            CreatedAt = r.CreatedAt
+                        };
+                        Program.Log($"JobQueueService: Approved job ready to print! ID={r.Id}, Color={r.ColorMode}");
+                        JobApproved?.Invoke(this, queueItem);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Approved query notice: {ex.Message}");
         }
     }
 

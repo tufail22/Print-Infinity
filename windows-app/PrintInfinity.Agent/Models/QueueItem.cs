@@ -83,13 +83,13 @@ public partial class QueueItem : ObservableObject
 
     public string PaymentBadgeBackground =>
         string.Equals(PaymentStatus, "verified", StringComparison.OrdinalIgnoreCase)
-            ? "#052E16"
-            : (string.Equals(PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase) ? "#3B2507" : "#1E1B4B");
+            ? "#DCFCE7"
+            : (string.Equals(PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase) ? "#FEF3C7" : "#EEF2FF");
 
     public string PaymentBadgeForeground =>
         string.Equals(PaymentStatus, "verified", StringComparison.OrdinalIgnoreCase)
-            ? "#4ADE80"
-            : (string.Equals(PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase) ? "#FBBF24" : "#818CF8");
+            ? "#15803D"
+            : (string.Equals(PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase) ? "#B45309" : "#4338CA");
 
     public string ApproveButtonText =>
         string.Equals(PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase) && !string.Equals(PaymentStatus, "verified", StringComparison.OrdinalIgnoreCase)

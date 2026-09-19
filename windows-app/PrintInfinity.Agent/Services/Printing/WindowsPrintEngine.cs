@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.Drawing.Printing;
 using System.IO;
 using System.Threading;
@@ -64,6 +65,8 @@ public class WindowsPrintEngine : IPrintEngine
         var totalPages = (int)pdfDoc.PageCount;
         int currentPageIndex = 0;
 
+        var isColor = string.Equals(job.ColorMode, "color", StringComparison.OrdinalIgnoreCase);
+
         await Task.Run(() =>
         {
             using var printDoc = new PrintDocument();
@@ -88,8 +91,8 @@ public class WindowsPrintEngine : IPrintEngine
                     using var netStream = pageStream.AsStream();
                     using var pageImage = Image.FromStream(netStream);
 
-                    // Fit image into printable area preserving aspect ratio
-                    DrawImagePreservingAspect(e.Graphics, pageImage, e.MarginBounds);
+                    // Fit image into printable area preserving aspect ratio and strictly enforcing color mode
+                    DrawImagePreservingAspect(e.Graphics, pageImage, e.MarginBounds, isColor);
 
                     currentPageIndex++;
                     e.HasMorePages = currentPageIndex < totalPages;
@@ -111,6 +114,8 @@ public class WindowsPrintEngine : IPrintEngine
         string documentName,
         CancellationToken cancellationToken)
     {
+        var isColor = string.Equals(job.ColorMode, "color", StringComparison.OrdinalIgnoreCase);
+
         await Task.Run(() =>
         {
             using var netStream = new MemoryStream(imageBytes);
@@ -126,7 +131,7 @@ public class WindowsPrintEngine : IPrintEngine
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                DrawImagePreservingAspect(e.Graphics, image, e.MarginBounds);
+                DrawImagePreservingAspect(e.Graphics, image, e.MarginBounds, isColor);
                 e.HasMorePages = false;
             };
 
@@ -167,7 +172,16 @@ public class WindowsPrintEngine : IPrintEngine
         }
     }
 
-    private static void DrawImagePreservingAspect(Graphics? g, Image img, Rectangle bounds)
+    private static readonly ColorMatrix GrayscaleMatrix = new ColorMatrix(new float[][]
+    {
+        new float[] {0.299f, 0.299f, 0.299f, 0, 0},
+        new float[] {0.587f, 0.587f, 0.587f, 0, 0},
+        new float[] {0.114f, 0.114f, 0.114f, 0, 0},
+        new float[] {0,      0,      0,      1, 0},
+        new float[] {0,      0,      0,      0, 1}
+    });
+
+    private static void DrawImagePreservingAspect(Graphics? g, Image img, Rectangle bounds, bool isColor)
     {
         if (g == null) return;
 
@@ -192,7 +206,17 @@ public class WindowsPrintEngine : IPrintEngine
 
         var x = bounds.X + (bounds.Width - drawWidth) / 2;
         var y = bounds.Y + (bounds.Height - drawHeight) / 2;
+        var destRect = new Rectangle(x, y, drawWidth, drawHeight);
 
-        g.DrawImage(img, new Rectangle(x, y, drawWidth, drawHeight));
+        if (!isColor)
+        {
+            using var attr = new ImageAttributes();
+            attr.SetColorMatrix(GrayscaleMatrix);
+            g.DrawImage(img, destRect, 0, 0, img.Width, img.Height, GraphicsUnit.Pixel, attr);
+        }
+        else
+        {
+            g.DrawImage(img, destRect);
+        }
     }
 }

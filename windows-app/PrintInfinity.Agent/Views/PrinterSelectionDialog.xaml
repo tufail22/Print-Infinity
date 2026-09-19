@@ -6,6 +6,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="using:PrintInfinity.Agent.Models"
     mc:Ignorable="d"
+    RequestedTheme="Light"
     Title="Select Target Printer"
     PrimaryButtonText="Print to Selected"
     CloseButtonText="Cancel"

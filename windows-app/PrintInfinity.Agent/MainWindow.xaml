@@ -7,7 +7,7 @@
     mc:Ignorable="d"
     Title="Print Infinity Agent">
 
-    <Grid Background="#0B0B14">
+    <Grid Background="#F8FAFC" RequestedTheme="Light">
         <ContentControl x:Name="MainContentContainer"
                         HorizontalContentAlignment="Stretch"
                         VerticalContentAlignment="Stretch" />

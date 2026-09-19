@@ -14,12 +14,9 @@ function getRazorpayCredentials() {
   const keyId = (
     process.env.RAZORPAY_KEY_ID ||
     process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
-    "rzp_test_TdU1DTwKD1f4Qe"
+    ""
   ).trim();
-  const keySecret = (
-    process.env.RAZORPAY_KEY_SECRET ||
-    "EI4nTw7sTvd1jhqG2d4W7fUi"
-  ).trim();
+  const keySecret = (process.env.RAZORPAY_KEY_SECRET || "").trim();
   return { keyId, keySecret };
 }
 

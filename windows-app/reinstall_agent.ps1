@@ -27,13 +27,13 @@ if ($remaining) {
     Start-Sleep -Seconds 1
 }
 
-# Step 2: Ensure source binary exists
-Write-Host "[2/5] Checking published release binaries..." -ForegroundColor White
-$sourceExe = Join-Path $sourceDir "PrintInfinity.Agent.exe"
-if (-not (Test-Path $sourceExe)) {
-    Write-Host "      Compiling fresh self-contained build..." -ForegroundColor Cyan
-    $proj = Join-Path $PSScriptRoot "PrintInfinity.Agent\PrintInfinity.Agent.csproj"
-    dotnet publish $proj -c Release -r win-x64 --self-contained -o $sourceDir
+# Step 2: Compile fresh self-contained release build
+Write-Host "[2/5] Compiling fresh self-contained release binaries..." -ForegroundColor White
+$proj = Join-Path $PSScriptRoot "PrintInfinity.Agent\PrintInfinity.Agent.csproj"
+dotnet publish $proj -c Release -r win-x64 --self-contained -o $sourceDir
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[!] Build failed with exit code $LASTEXITCODE" -ForegroundColor Red
+    exit 1
 }
 
 # Step 3: Copy to target directory

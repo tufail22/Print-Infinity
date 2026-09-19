@@ -12,6 +12,7 @@ import {
   Lock,
   Zap,
   ShieldCheck,
+  AlertCircle,
 } from "lucide-react";
 import { StoreHeader } from "@/components/print/StoreHeader";
 import { UploadZone } from "@/components/print/UploadZone";
@@ -40,6 +41,7 @@ function PrintWizardContent() {
   const [loadingStore, setLoadingStore] = useState(true);
   const [files, setFiles] = useState<UploadedFileItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [activeJob, setActiveJob] = useState<PrintJobRecord | null>(null);
   const [customerToken, setCustomerToken] = useState<string>("");
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>("upi");
@@ -154,6 +156,7 @@ function PrintWizardContent() {
     if (files.length === 0 || !store) return;
 
     try {
+      setSubmissionError(null);
       setIsSubmitting(true);
       const firstFile = files[0];
       const jobToken = rotateCustomerToken();
@@ -172,7 +175,10 @@ function PrintWizardContent() {
         });
 
       if (uploadError) {
-        console.warn("Storage upload notice:", uploadError);
+        console.error("[PrintWizard] Storage upload error:", uploadError);
+        throw new Error(
+          `Document upload could not be completed (${uploadError.message || "network interrupted"}). Please check your connection and try again.`
+        );
       }
 
       // Storage expires in 15 minutes
@@ -332,9 +338,9 @@ function PrintWizardContent() {
 
       setActiveJob(jobData as PrintJobRecord);
       setStep(6); // Advance to live tracker (Step 6)
-    } catch (err) {
+    } catch (err: any) {
       console.error("Submission error:", err);
-      alert("Could not submit print job: " + (err as Error).message);
+      setSubmissionError(err?.message || "Could not submit print job. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -549,6 +555,23 @@ function PrintWizardContent() {
                 Back to Preview
               </button>
             </div>
+
+            {submissionError && (
+              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium space-y-2 animate-fadeIn">
+                <div className="flex items-center gap-2 font-bold text-rose-900">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>Submission Notice</span>
+                </div>
+                <p>{submissionError}</p>
+                <button
+                  type="button"
+                  onClick={() => setSubmissionError(null)}
+                  className="text-[11px] font-bold text-rose-700 underline hover:text-rose-900"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
 
             <PaymentSelector
               amount={priceBreakdown.total}

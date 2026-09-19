@@ -30,6 +30,8 @@ export const LiveTracker: React.FC<LiveTrackerProps> = ({
 }) => {
   const [job, setJob] = useState<PrintJobRecord>(initialJob);
   const [hasCelebrated, setHasCelebrated] = useState(false);
+  const [isSwitchingToCash, setIsSwitchingToCash] = useState(false);
+  const [switchError, setSwitchError] = useState<string | null>(null);
 
   // Subscribe to Realtime Postgres changes on print_jobs for this job
   useEffect(() => {
@@ -60,6 +62,63 @@ export const LiveTracker: React.FC<LiveTrackerProps> = ({
       supabase.removeChannel(channel);
     };
   }, [job.id]);
+
+  // Fallback Polling every 3.5s to ensure progress updates even if Realtime drops
+  useEffect(() => {
+    if (["completed", "rejected", "expired", "failed"].includes(job.status)) {
+      return;
+    }
+
+    const intervalId = setInterval(async () => {
+      try {
+        const supabase = getCustomerSupabaseClient();
+        const { data, error } = await supabase
+          .from("print_jobs")
+          .select("*")
+          .eq("id", job.id)
+          .single();
+
+        if (data && !error) {
+          setJob((prev) => {
+            if (prev.status !== data.status || prev.printer_id !== data.printer_id) {
+              return { ...prev, ...(data as PrintJobRecord) };
+            }
+            return prev;
+          });
+        }
+      } catch {
+        // quiet fallback
+      }
+    }, 3500);
+
+    return () => clearInterval(intervalId);
+  }, [job.id, job.status]);
+
+  const handleSwitchToCash = async () => {
+    try {
+      setIsSwitchingToCash(true);
+      setSwitchError(null);
+      const res = await fetch("/api/payment/switch-to-cash", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          print_job_id: job.id,
+          customer_token: customerToken,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to switch payment method");
+      }
+      if (data.job) {
+        setJob((prev) => ({ ...prev, ...(data.job as PrintJobRecord) }));
+      }
+    } catch (err: any) {
+      setSwitchError(err.message || "Failed to switch payment method");
+    } finally {
+      setIsSwitchingToCash(false);
+    }
+  };
 
   // Celebrate on completion
   useEffect(() => {
@@ -137,15 +196,27 @@ export const LiveTracker: React.FC<LiveTrackerProps> = ({
 
       {/* Pending Payment Notice */}
       {job.status === "pending_payment" && (
-        <div className="glass-panel p-4 rounded-3xl bg-amber-50/90 border border-amber-200 text-amber-900 space-y-1 shadow-sm animate-fadeIn">
+        <div className="glass-panel p-4 rounded-3xl bg-amber-50/90 border border-amber-200 text-amber-900 space-y-3 shadow-sm animate-fadeIn">
           <div className="flex items-center gap-2 font-bold text-xs">
             <Clock className="w-4 h-4 text-amber-600 animate-pulse" />
             <span>Awaiting Payment Confirmation</span>
           </div>
           <p className="text-xs text-amber-700 font-medium leading-relaxed">
-            For Cash: Please hand cash to the storekeeper at the counter.
-            For UPI: Waiting for Razorpay bank verification webhook.
+            Payment has not been confirmed yet. You can complete the UPI transaction, or if your UPI app failed or you prefer to pay at the counter, switch to cash right away.
           </p>
+          {switchError && (
+            <p className="text-[11px] text-rose-600 font-bold bg-rose-50 p-2 rounded-xl border border-rose-200">
+              {switchError}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={handleSwitchToCash}
+            disabled={isSwitchingToCash}
+            className="w-full py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-[0.98] text-white font-black text-xs shadow-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {isSwitchingToCash ? "Updating Payment Mode..." : "Pay Cash at Counter Instead"}
+          </button>
         </div>
       )}
 

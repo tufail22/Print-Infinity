@@ -5,7 +5,8 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="using:PrintInfinity.Agent.Models"
-    mc:Ignorable="d">
+    mc:Ignorable="d"
+    RequestedTheme="Light">
 
     <StackPanel Spacing="20" MaxWidth="980" HorizontalAlignment="Stretch">
 
@@ -23,9 +24,9 @@
 
             <StackPanel>
                 <TextBlock Text="Hardware Printers &amp; Cloud Mapping"
-                           FontSize="22" FontWeight="Bold" Foreground="White"/>
+                           FontSize="22" FontWeight="Bold" Foreground="#0F172A"/>
                 <TextBlock Text="Tag each printer as Color or B&amp;W, set connection type, then save to Supabase."
-                           Foreground="#4B5563" FontSize="13" Margin="0,3,0,0"/>
+                           Foreground="#64748B" FontSize="13" Margin="0,3,0,0"/>
             </StackPanel>
 
             <!-- Toolbar -->
@@ -33,40 +34,41 @@
                         Spacing="8" VerticalAlignment="Center">
 
                 <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}"
-                           Foreground="#374151" FontSize="12"
+                           Foreground="#64748B" FontSize="12"
                            VerticalAlignment="Center" Margin="0,0,8,0"/>
 
                 <!-- Add Custom Printer -->
                 <Button Click="OnAddCustomPrinterClick"
                         ToolTipService.ToolTip="Add a custom printer manually"
-                        Background="#1B3124"
-                        BorderBrush="#10B981"
+                        Background="#ECFDF5"
+                        BorderBrush="#A7F3D0"
                         BorderThickness="1"
                         CornerRadius="10"
                         Padding="12,8">
                     <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE710;" FontSize="14" Foreground="#10B981"/>
-                        <TextBlock Text="Add Printer" FontSize="13" Foreground="#10B981"/>
+                        <FontIcon Glyph="&#xE710;" FontSize="14" Foreground="#059669"/>
+                        <TextBlock Text="Add Printer" FontSize="13" Foreground="#059669" FontWeight="SemiBold"/>
                     </StackPanel>
                 </Button>
 
                 <!-- Scan Windows Printers -->
                 <Button Command="{x:Bind ViewModel.LoadPrintersCommand, Mode=OneWay}"
                         ToolTipService.ToolTip="Scan Windows for installed printers"
-                        Background="#1E2235"
-                        BorderBrush="#334155"
+                        Background="#FFFFFF"
+                        BorderBrush="#CBD5E1"
+                        BorderThickness="1"
                         CornerRadius="10"
                         Padding="12,8">
                     <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE72C;" FontSize="14" Foreground="#94A3B8"/>
-                        <TextBlock Text="Scan Printers" FontSize="13" Foreground="#94A3B8"/>
+                        <FontIcon Glyph="&#xE72C;" FontSize="14" Foreground="#475569"/>
+                        <TextBlock Text="Scan Printers" FontSize="13" Foreground="#475569"/>
                     </StackPanel>
                 </Button>
 
                 <!-- Save All to Cloud -->
                 <Button Command="{x:Bind ViewModel.SaveAllCommand, Mode=OneWay}"
                         ToolTipService.ToolTip="Save all printer configurations to Supabase"
-                        Background="#6366F1"
+                        Background="#4F46E5"
                         CornerRadius="10"
                         Padding="12,8">
                     <StackPanel Orientation="Horizontal" Spacing="6">
@@ -85,8 +87,8 @@
                 <DataTemplate x:DataType="models:PrinterItem">
                     <Border CornerRadius="14" Padding="22"
                             Margin="0,0,0,14"
-                            Background="#161627"
-                            BorderBrush="#1E2235"
+                            Background="#FFFFFF"
+                            BorderBrush="#E2E8F0"
                             BorderThickness="1">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -101,36 +103,36 @@
                                         Padding="0,0,16,0">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <Border CornerRadius="8" Width="36" Height="36"
-                                            Background="#1E1A40">
+                                            Background="#EEF2FF">
                                         <FontIcon Glyph="&#xEBD2;" FontSize="18"
-                                                  Foreground="#818CF8"
+                                                  Foreground="#4F46E5"
                                                   HorizontalAlignment="Center"
                                                   VerticalAlignment="Center"/>
                                     </Border>
                                     <TextBlock Text="{x:Bind WindowsPrinterName}"
                                                FontSize="14" FontWeight="SemiBold"
-                                               Foreground="White"
+                                               Foreground="#0F172A"
                                                TextWrapping="Wrap"
                                                VerticalAlignment="Center"/>
                                 </StackPanel>
 
                                 <StackPanel Orientation="Horizontal" Spacing="6"
                                             Margin="46,0,0,0">
-                                    <TextBlock Text="Port:" FontSize="11" Foreground="#374151"/>
+                                    <TextBlock Text="Port:" FontSize="11" Foreground="#64748B"/>
                                     <TextBlock Text="{x:Bind PortName}"
-                                               FontSize="11" Foreground="#4B5563"/>
+                                               FontSize="11" Foreground="#334155"/>
                                 </StackPanel>
 
                                 <!-- Status Badge -->
                                 <Border Margin="46,2,0,0" CornerRadius="6"
                                         Padding="8,3" HorizontalAlignment="Left"
-                                        Background="#1E2235">
+                                        Background="#F1F5F9">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <Ellipse Width="7" Height="7"
                                                  Fill="{x:Bind StatusBadgeColor, Mode=OneWay}"/>
                                         <TextBlock Text="{x:Bind StatusText, Mode=OneWay}"
                                                    FontSize="11" FontWeight="SemiBold"
-                                                   Foreground="#94A3B8"/>
+                                                   Foreground="#475569"/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
@@ -140,12 +142,12 @@
                                         VerticalAlignment="Center" Padding="12,0">
                                 <StackPanel Spacing="4">
                                     <TextBlock Text="Friendly Cloud Name"
-                                               FontSize="11" Foreground="#4B5563"/>
+                                               FontSize="11" FontWeight="Medium" Foreground="#64748B"/>
                                     <TextBox PlaceholderText="e.g. Counter 1 B&amp;W Laser"
                                              Text="{x:Bind DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                             Background="#0B0B14"
-                                             Foreground="White"
-                                             BorderBrush="#1E2235"
+                                             Background="#F8FAFC"
+                                             Foreground="#0F172A"
+                                             BorderBrush="#CBD5E1"
                                              CornerRadius="8"
                                              Padding="10,8"/>
                                 </StackPanel>
@@ -159,34 +161,34 @@
                                     <!-- Color / B&W -->
                                     <StackPanel Grid.Column="0" Spacing="5">
                                         <TextBlock Text="PRINT TYPE" FontSize="10"
-                                                   Foreground="#374151"
+                                                   Foreground="#64748B"
                                                    FontWeight="SemiBold"/>
                                         <StackPanel Orientation="Horizontal" Spacing="12">
                                             <RadioButton Content="B&amp;W"
                                                          IsChecked="{x:Bind IsBw, Mode=TwoWay}"
                                                          GroupName="{x:Bind WindowsPrinterName}"
-                                                         Foreground="#CBD5E1"/>
+                                                         Foreground="#334155"/>
                                             <RadioButton Content="Color"
                                                          IsChecked="{x:Bind IsColor, Mode=TwoWay}"
                                                          GroupName="{x:Bind WindowsPrinterName}"
-                                                         Foreground="#CBD5E1"/>
+                                                         Foreground="#334155"/>
                                         </StackPanel>
                                     </StackPanel>
 
                                     <!-- Connection -->
                                     <StackPanel Grid.Column="1" Spacing="5">
                                         <TextBlock Text="CONNECTION" FontSize="10"
-                                                   Foreground="#374151"
+                                                   Foreground="#64748B"
                                                    FontWeight="SemiBold"/>
                                         <StackPanel Orientation="Horizontal" Spacing="12">
                                             <RadioButton Content="USB"
                                                          IsChecked="{x:Bind IsUsb, Mode=TwoWay}"
                                                          GroupName="{x:Bind PortName}"
-                                                         Foreground="#CBD5E1"/>
+                                                         Foreground="#334155"/>
                                             <RadioButton Content="WiFi"
                                                          IsChecked="{x:Bind IsWifi, Mode=TwoWay}"
                                                          GroupName="{x:Bind PortName}"
-                                                         Foreground="#CBD5E1"/>
+                                                         Foreground="#334155"/>
                                         </StackPanel>
                                     </StackPanel>
                                 </Grid>
@@ -199,7 +201,7 @@
                                 <!-- Save -->
                                 <Button HorizontalAlignment="Stretch"
                                         Height="40" CornerRadius="10"
-                                        Background="#6366F1"
+                                        Background="#4F46E5"
                                         Click="OnSaveSinglePrinterClick"
                                         DataContext="{x:Bind}">
                                     <Grid>
@@ -217,8 +219,8 @@
                                 <!-- Delete -->
                                 <Button HorizontalAlignment="Stretch"
                                         Height="36" CornerRadius="10"
-                                        Background="#2A1010"
-                                        BorderBrush="#7F1D1D"
+                                        Background="#FEF2F2"
+                                        BorderBrush="#FECACA"
                                         BorderThickness="1"
                                         Click="OnDeletePrinterClick"
                                         DataContext="{x:Bind}"
@@ -226,14 +228,14 @@
                                     <StackPanel Orientation="Horizontal" Spacing="6"
                                                 HorizontalAlignment="Center">
                                         <FontIcon Glyph="&#xE74D;" FontSize="13"
-                                                  Foreground="#F87171"/>
+                                                  Foreground="#DC2626"/>
                                         <TextBlock Text="Delete" FontSize="13"
-                                                   Foreground="#F87171"/>
+                                                   Foreground="#DC2626" FontWeight="SemiBold"/>
                                     </StackPanel>
                                 </Button>
 
                                 <TextBlock Text="{x:Bind LastSavedAtText, Mode=OneWay}"
-                                           FontSize="10" Foreground="#374151"
+                                           FontSize="10" Foreground="#64748B"
                                            HorizontalAlignment="Center"
                                            TextAlignment="Center"/>
                             </StackPanel>
@@ -246,30 +248,30 @@
         <!-- Empty State -->
         <Border Visibility="{x:Bind ViewModel.HasNoPrinters, Mode=OneWay}"
                 CornerRadius="16" Padding="48"
-                Background="#131322"
-                BorderBrush="#1E2235"
+                Background="#FFFFFF"
+                BorderBrush="#E2E8F0"
                 BorderThickness="1">
             <StackPanel HorizontalAlignment="Center" Spacing="12">
                 <Border CornerRadius="32" Width="64" Height="64"
                         HorizontalAlignment="Center"
-                        Background="#1E2235">
+                        Background="#EEF2FF">
                     <FontIcon Glyph="&#xEBD2;" FontSize="28"
-                              Foreground="#374151"
+                              Foreground="#6366F1"
                               HorizontalAlignment="Center"
                               VerticalAlignment="Center"/>
                 </Border>
                 <TextBlock Text="No Printers Found"
                            FontSize="18" FontWeight="SemiBold"
-                           Foreground="#D1D5DB"
+                           Foreground="#1E293B"
                            HorizontalAlignment="Center"/>
                 <TextBlock Text="Click 'Scan Printers' to detect Windows printers, or 'Add Printer' to add one manually."
-                           Foreground="#4B5563" FontSize="13"
+                           Foreground="#64748B" FontSize="13"
                            HorizontalAlignment="Center"/>
             </StackPanel>
         </Border>
 
         <TextBlock Text="Connected to Supabase · Windows Print Subsystem Native Integration"
-                   FontSize="11" Foreground="#1F2937"
+                   FontSize="11" Foreground="#94A3B8"
                    HorizontalAlignment="Center"
                    Margin="0,8,0,0"/>
     </StackPanel>

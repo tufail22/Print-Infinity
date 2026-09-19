@@ -97,7 +97,7 @@ public class PrintPipelineService : IPrintPipelineService
                 return;
             }
 
-            // 2. Auto-select printer based on color_mode and is_online
+            // 2. Strict Auto-selection of printer: Color jobs ONLY to Color printers, B&W ONLY to B&W
             var targetMode = (jobResponse.ColorMode ?? "bw").ToLowerInvariant();
             var printerResponse = await _authService.Client.From<PrinterRecord>()
                 .Where(p => p.StoreId == _authService.CurrentStoreId)
@@ -110,26 +110,10 @@ public class PrintPipelineService : IPrintPipelineService
 
             if (matchingPrinters.Count == 0)
             {
-                // Fallback 1: Check any online printer in store regardless of type
-                var anyOnlineResp = await _authService.Client.From<PrinterRecord>()
-                    .Where(p => p.StoreId == _authService.CurrentStoreId)
-                    .Where(p => p.IsOnline == true)
-                    .Get();
-
-                if (anyOnlineResp?.Models != null && anyOnlineResp.Models.Count > 0)
-                {
-                    matchingPrinters = anyOnlineResp.Models;
-                }
-            }
-
-            if (matchingPrinters.Count == 0)
-            {
-                // Fallback 2: Check local Windows printers directly
+                // Fallback: Check local Windows printers strictly tagged with the exact targetMode
                 var localWinService = new WindowsPrinterService();
                 var localPrinters = await localWinService.GetInstalledPrintersAsync();
-                var candidate = localPrinters.FirstOrDefault(p => string.Equals(p.Type, targetMode, StringComparison.OrdinalIgnoreCase) && p.IsOnline)
-                             ?? localPrinters.FirstOrDefault(p => p.IsOnline)
-                             ?? localPrinters.FirstOrDefault();
+                var candidate = localPrinters.FirstOrDefault(p => string.Equals(p.Type, targetMode, StringComparison.OrdinalIgnoreCase) && p.IsOnline);
 
                 if (candidate != null)
                 {
@@ -138,7 +122,7 @@ public class PrintPipelineService : IPrintPipelineService
                 else
                 {
                     var modeTitle = targetMode == "color" ? "Color" : "Black & White";
-                    var friendlyError = $"No online {modeTitle} printer found. Please check that your printer is turned on, has paper, and is connected to this PC.";
+                    var friendlyError = $"No online {modeTitle} printer found. Please check that your {modeTitle} printer is turned on, has paper, and is connected to this PC.";
                     
                     jobResponse.Status = "failed";
                     jobResponse.RejectionReason = friendlyError;
@@ -152,9 +136,15 @@ public class PrintPipelineService : IPrintPipelineService
             }
             else if (selectedPrinter == null)
             {
-                if (matchingPrinters.Count == 1)
+                // Deduplicate online candidates by WindowsPrinterName
+                var uniquePrinters = matchingPrinters
+                    .GroupBy(p => p.WindowsPrinterName, StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First())
+                    .ToList();
+
+                if (uniquePrinters.Count == 1)
                 {
-                    var p = matchingPrinters[0];
+                    var p = uniquePrinters[0];
                     selectedPrinter = new PrinterItem
                     {
                         WindowsPrinterName = p.WindowsPrinterName,
@@ -166,24 +156,26 @@ public class PrintPipelineService : IPrintPipelineService
                 }
                 else
                 {
-                    // Multiple online printers match: prompt storekeeper from strictly this filtered list
-                    var candidates = matchingPrinters.Select(p => new PrinterItem
-                    {
-                        WindowsPrinterName = p.WindowsPrinterName,
-                        DisplayName = p.Name,
-                        Type = p.Type,
-                        Connection = p.Connection,
-                        IsOnline = p.IsOnline
-                    }).ToList();
+                    // Multiple online printers match: auto-select primary hardware printer
+                    // Color -> HP Smart Tank
+                    // B&W   -> Samsung M267x
+                    var primary = uniquePrinters.FirstOrDefault(c =>
+                        (targetMode == "color" && c.WindowsPrinterName.Contains("HP", StringComparison.OrdinalIgnoreCase)) ||
+                        (targetMode == "bw" && c.WindowsPrinterName.Contains("Samsung", StringComparison.OrdinalIgnoreCase))
+                    ) ?? uniquePrinters.First();
 
-                    selectedPrinter = await task.SelectPrinterCallback(candidates);
-                    if (selectedPrinter == null)
+                    selectedPrinter = new PrinterItem
                     {
-                        NotifyEvent(jobId, "Pending", "Printer selection cancelled by storekeeper.", isError: false);
-                        return;
-                    }
+                        WindowsPrinterName = primary.WindowsPrinterName,
+                        DisplayName = primary.Name,
+                        Type = primary.Type,
+                        Connection = primary.Connection,
+                        IsOnline = primary.IsOnline
+                    };
                 }
             }
+
+            Program.Log($"[PrintPipeline] Job {jobId}: Auto-selected printer '{selectedPrinter.DisplayName}' ({selectedPrinter.WindowsPrinterName}) for mode {targetMode.ToUpper()}");
 
             // 3. Mark job as approved before spooling
             jobResponse.Status = "approved";
@@ -229,16 +221,32 @@ public class PrintPipelineService : IPrintPipelineService
                 throw new InvalidOperationException("Failed to generate short-lived signed URL from Supabase Storage.");
             }
 
-            // 5. Download bytes into strictly in-memory buffer (Zero Disk I/O)
-            using (var httpClient = new HttpClient())
+            // 5. Download bytes into strictly in-memory buffer (Zero Disk I/O) with retry
+            using (var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) })
             {
-                inMemoryBuffer = await httpClient.GetByteArrayAsync(signedUrl);
+                int maxRetries = 3;
+                for (int attempt = 1; attempt <= maxRetries; attempt++)
+                {
+                    try
+                    {
+                        inMemoryBuffer = await httpClient.GetByteArrayAsync(signedUrl);
+                        if (inMemoryBuffer != null && inMemoryBuffer.Length > 0)
+                            break;
+                    }
+                    catch (Exception netEx) when (attempt < maxRetries)
+                    {
+                        Program.Log($"[PrintPipeline] Download attempt {attempt} failed: {netEx.Message}. Retrying in 2s...");
+                        await Task.Delay(2000, _cts.Token);
+                    }
+                }
             }
 
             if (inMemoryBuffer == null || inMemoryBuffer.Length == 0)
             {
                 throw new InvalidOperationException("Downloaded document buffer is empty.");
             }
+
+            Program.Log($"[PrintPipeline] Job {jobId}: Downloaded {inMemoryBuffer.Length} bytes to in-memory buffer. Zero-disk policy active.");
 
             // 6. Transition status to 'printing' so customer tracker updates in real-time
             jobResponse.Status = "printing";
@@ -260,6 +268,8 @@ public class PrintPipelineService : IPrintPipelineService
                 jobResponse,
                 _cts.Token
             );
+
+            Program.Log($"[PrintPipeline] Job {jobId}: Document '{documentName}' spooled to printer '{selectedPrinter.WindowsPrinterName}'.");
 
             // 8. Monitor Windows Print Spooler for completion or errors
             var spoolerResult = await _spoolerMonitor.WaitForJobCompletionAsync(
@@ -283,6 +293,8 @@ public class PrintPipelineService : IPrintPipelineService
                 return;
             }
 
+            Program.Log($"[PrintPipeline] Job {jobId}: Spooler completed successfully.");
+
             // 9. Mark status as 'completed'
             jobResponse.Status = "completed";
             jobResponse.UpdatedAt = DateTime.UtcNow;
@@ -298,6 +310,7 @@ public class PrintPipelineService : IPrintPipelineService
                 await _authService.Client.Storage.From("print-uploads").Remove(new List<string> { storagePath });
                 jobResponse.StoragePath = null;
                 await _authService.Client.From<PrintJobRecord>().Update(jobResponse);
+                Program.Log($"[PrintPipeline] Job {jobId}: Cleaned up! Cloud storage file deleted and RAM zeroed.");
             }
             catch (Exception ex)
             {
@@ -321,7 +334,20 @@ public class PrintPipelineService : IPrintPipelineService
         catch (Exception ex)
         {
             Program.Log($"[PrintPipeline] EXCEPTION processing job {jobId}: {ex.GetType().FullName}: {ex.Message}\n{ex.StackTrace}");
-            var friendlyExError = "Unable to process document for printing. Please check your internet connection and printer cable/Wi-Fi.";
+            
+            string friendlyExError;
+            if (ex is System.ComponentModel.Win32Exception)
+            {
+                friendlyExError = $"Printer hardware error: Please check that your printer is turned ON, connected via USB/Wi-Fi, and has paper.";
+            }
+            else if (ex is System.Net.Http.HttpRequestException)
+            {
+                friendlyExError = "Network error while transferring document. Please check your internet connection.";
+            }
+            else
+            {
+                friendlyExError = "Unable to process document for printing. Please check your printer cable, paper tray, and internet connection.";
+            }
             
             try
             {
