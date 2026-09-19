@@ -124,7 +124,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
 
     setIsProcessing(false);
     if (newItems.length > 0) {
-      onFilesChange([...files, ...newItems]);
+      onFilesChange([newItems[0]]);
     }
   };
 
@@ -198,7 +198,6 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
         <input
           ref={fileInputRef}
           type="file"
-          multiple
           accept=".pdf,.doc,.docx,.ppt,.pptx,.jpg,.jpeg,.png,.webp,.txt"
           onChange={handleInputChange}
           className="hidden"
@@ -216,16 +215,16 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
 
           <div>
             <p className="text-base font-extrabold text-slate-800 tracking-tight">
-              {isDragOver ? "Drop documents to upload" : "Tap or Drag files to print"}
+              {isDragOver ? "Drop document to upload" : "Tap or Drag file to print"}
             </p>
             <p className="text-xs text-slate-500 mt-1 font-medium">
-              PDF, Word, PowerPoint, Images (Max 100MB per file)
+              PDF, Word, PowerPoint, Images (Max 100MB)
             </p>
           </div>
 
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100/90 text-slate-700 text-xs font-bold border border-slate-200/60 shadow-xs">
             <Layers className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Multiple files supported</span>
+            <span>Dedicated Print Job per Document</span>
           </div>
         </div>
       </div>

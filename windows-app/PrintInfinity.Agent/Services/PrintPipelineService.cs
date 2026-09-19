@@ -349,20 +349,28 @@ public class PrintPipelineService : IPrintPipelineService
                 friendlyExError = "Unable to process document for printing. Please check your printer cable, paper tray, and internet connection.";
             }
             
-            try
+            for (int r = 1; r <= 3; r++)
             {
-                var failRecord = await _authService.Client.From<PrintJobRecord>().Where(x => x.Id == jobId).Single();
-                if (failRecord != null)
+                try
                 {
-                    failRecord.Status = "failed";
-                    failRecord.RejectionReason = friendlyExError;
-                    failRecord.UpdatedAt = DateTime.UtcNow;
-                    await _authService.Client.From<PrintJobRecord>().Update(failRecord);
+                    var failRecord = await _authService.Client.From<PrintJobRecord>().Where(x => x.Id == jobId).Single();
+                    if (failRecord != null)
+                    {
+                        failRecord.Status = "failed";
+                        failRecord.RejectionReason = friendlyExError;
+                        failRecord.UpdatedAt = DateTime.UtcNow;
+                        await _authService.Client.From<PrintJobRecord>().Update(failRecord);
+                        break;
+                    }
                 }
-            }
-            catch
-            {
-                // Suppress secondary update failure
+                catch when (r < 3)
+                {
+                    await Task.Delay(1500, _cts.Token);
+                }
+                catch
+                {
+                    // Suppress final secondary update failure
+                }
             }
 
             NotifyEvent(jobId, "Failed", friendlyExError, isError: true);

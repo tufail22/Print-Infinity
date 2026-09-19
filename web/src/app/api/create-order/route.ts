@@ -66,15 +66,28 @@ export async function POST(req: NextRequest) {
       ...(customer_token ? { customer_token } : {}),
     };
 
-    // 4. Create Order via Razorpay API
+    // Helper to race promise against strict timeout
+    const withTimeout = <T>(promise: Promise<T>, ms: number, errMsg: string): Promise<T> => {
+      let timer: NodeJS.Timeout;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(errMsg)), ms);
+      });
+      return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+    };
+
+    // 4. Create Order via Razorpay API with 6s timeout
     let order;
     try {
-      order = await razorpay.orders.create({
-        amount: amountInPaise,
-        currency: currency.toUpperCase(),
-        receipt: orderReceipt,
-        notes: orderNotes,
-      });
+      order = await withTimeout(
+        razorpay.orders.create({
+          amount: amountInPaise,
+          currency: currency.toUpperCase(),
+          receipt: orderReceipt,
+          notes: orderNotes,
+        }),
+        6000,
+        "Payment gateway request timed out after 6 seconds"
+      );
     } catch (rzpErr: any) {
       console.warn("[create-order] Razorpay SDK warning:", rzpErr?.error || rzpErr?.message);
       const statusCode = rzpErr.statusCode || (rzpErr.error?.code === "BAD_REQUEST_ERROR" ? 400 : 500);

@@ -19,6 +19,7 @@ public interface IJobQueueService : IDisposable
     Task<List<QueueItem>> FetchPendingJobsAsync(Guid storeId);
     Task<bool> ApproveJobAsync(Guid jobId);
     Task<bool> RejectJobAsync(Guid jobId, string reason);
+    void ReleaseApprovedJob(Guid jobId);
 }
 
 public class JobQueueService : IJobQueueService
@@ -34,6 +35,11 @@ public class JobQueueService : IJobQueueService
     public event EventHandler<QueueItem>? JobArrived;
     public event EventHandler<Guid>? JobRemoved;
     public event EventHandler<QueueItem>? JobApproved;
+
+    public void ReleaseApprovedJob(Guid jobId)
+    {
+        _dispatchedApprovedJobIds.Remove(jobId);
+    }
 
     public JobQueueService(ISupabaseAuthService authService)
     {

@@ -93,15 +93,21 @@ export async function POST(req: NextRequest) {
       })
       .eq("id", payment.id);
 
-    // 5. Set print_jobs.status = 'pending_approval' (ready for Storekeeper)
-    await supabaseAdmin
+    // 5. Set print_jobs.status = 'pending_approval' (ONLY if still awaiting payment)
+    // Guard against race conditions where delayed webhooks arrive after storekeeper has already approved/printed
+    const { data: updatedJob } = await supabaseAdmin
       .from("print_jobs")
       .update({
         status: "pending_approval",
       })
-      .eq("id", targetJobId);
+      .eq("id", targetJobId)
+      .eq("status", "pending_payment")
+      .select("id, status")
+      .maybeSingle();
 
-    console.log(`[webhook] SUCCESS: Verified payment ${payment.id}. Job ${targetJobId} moved to 'pending_approval'.`);
+    console.log(
+      `[webhook] SUCCESS: Verified payment ${payment.id}. Job ${targetJobId} status updated: ${updatedJob ? "pending_approval" : "retained existing progressive status"}.`
+    );
 
     return NextResponse.json({
       success: true,

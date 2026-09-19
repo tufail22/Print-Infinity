@@ -264,80 +264,92 @@ function PrintWizardContent() {
             }),
           });
 
-          if (orderRes.ok) {
-            const orderData = await orderRes.json();
-            
-            // Load Razorpay SDK dynamically
-            const loadScript = (): Promise<boolean> => {
-              return new Promise((resolve) => {
-                if (typeof window !== "undefined" && (window as any).Razorpay) {
-                  resolve(true);
-                  return;
-                }
-                const script = document.createElement("script");
-                script.src = "https://checkout.razorpay.com/v1/checkout.js";
-                script.onload = () => resolve(true);
-                script.onerror = () => resolve(false);
-                document.body.appendChild(script);
-              });
-            };
-
-            const isLoaded = await loadScript();
-            if (isLoaded && (window as any).Razorpay) {
-              const rzp = new (window as any).Razorpay({
-                key: orderData.key_id || orderData.keyId || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-                amount: orderData.amount,
-                currency: orderData.currency || "INR",
-                name: "Print Infinity",
-                description: `Print Job (${jobData.id.slice(0, 8)})`,
-                order_id: orderData.order_id || orderData.orderId,
-                theme: { color: "#4f46e5" },
-                modal: {
-                  ondismiss: () => {
-                    console.log("[Razorpay] Customer dismissed checkout modal");
-                    setActiveJob(jobData as PrintJobRecord);
-                    setStep(6);
-                  },
-                },
-                handler: async (response: any) => {
-                  try {
-                    // Send razorpay_payment_id, razorpay_order_id, razorpay_signature to verify endpoint
-                    await fetch("/api/verify-payment", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        print_job_id: jobData.id,
-                        customer_token: jobToken,
-                        razorpay_payment_id: response?.razorpay_payment_id,
-                        razorpay_order_id: response?.razorpay_order_id,
-                        razorpay_signature: response?.razorpay_signature,
-                      }),
-                    });
-                  } catch (vErr) {
-                    console.warn("Payment verification notice:", vErr);
-                  }
-                  setActiveJob(jobData as PrintJobRecord);
-                  setStep(6);
-                },
-              });
-
-              // Handle payment failure event
-              rzp.on("payment.failed", (response: any) => {
-                console.error("[Razorpay] Payment failed:", response?.error);
-                alert(`Payment could not be completed: ${response?.error?.description || "Transaction failed"}. You may retry or pay via cash at the counter.`);
-              });
-
-              rzp.open();
-              return;
-            }
+          if (!orderRes.ok) {
+            const errData = await orderRes.json().catch(() => ({}));
+            throw new Error(
+              errData.error ||
+              "Payment gateway could not create order. Please try again or select 'Pay Cash at Counter'."
+            );
           }
-        } catch (rzpErr) {
-          console.warn("[Razorpay] Order creation notice:", rzpErr);
+
+          const orderData = await orderRes.json();
+          
+          // Load Razorpay SDK dynamically
+          const loadScript = (): Promise<boolean> => {
+            return new Promise((resolve) => {
+              if (typeof window !== "undefined" && (window as any).Razorpay) {
+                resolve(true);
+                return;
+              }
+              const script = document.createElement("script");
+              script.src = "https://checkout.razorpay.com/v1/checkout.js";
+              script.onload = () => resolve(true);
+              script.onerror = () => resolve(false);
+              document.body.appendChild(script);
+            });
+          };
+
+          const isLoaded = await loadScript();
+          if (!isLoaded || !(window as any).Razorpay) {
+            throw new Error(
+              "Razorpay checkout failed to load. Please check your internet connection, disable ad-blockers, or select 'Pay Cash at Counter'."
+            );
+          }
+
+          const rzp = new (window as any).Razorpay({
+            key: orderData.key_id || orderData.keyId || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+            amount: orderData.amount,
+            currency: orderData.currency || "INR",
+            name: "Print Infinity",
+            description: `Print Job (${jobData.id.slice(0, 8)})`,
+            order_id: orderData.order_id || orderData.orderId,
+            theme: { color: "#4f46e5" },
+            modal: {
+              ondismiss: () => {
+                console.log("[Razorpay] Customer dismissed checkout modal");
+                setActiveJob(jobData as PrintJobRecord);
+                setStep(6);
+              },
+            },
+            handler: async (response: any) => {
+              try {
+                // Send razorpay_payment_id, razorpay_order_id, razorpay_signature to verify endpoint
+                await fetch("/api/verify-payment", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    print_job_id: jobData.id,
+                    customer_token: jobToken,
+                    razorpay_payment_id: response?.razorpay_payment_id,
+                    razorpay_order_id: response?.razorpay_order_id,
+                    razorpay_signature: response?.razorpay_signature,
+                  }),
+                });
+              } catch (vErr) {
+                console.warn("Payment verification notice:", vErr);
+              }
+              setActiveJob(jobData as PrintJobRecord);
+              setStep(6);
+            },
+          });
+
+          // Handle payment failure event
+          rzp.on("payment.failed", (response: any) => {
+            console.error("[Razorpay] Payment failed:", response?.error);
+            setSubmissionError(
+              `Payment could not be completed: ${response?.error?.description || "Transaction failed"}. You can retry or switch to 'Pay Cash at Counter'.`
+            );
+          });
+
+          rzp.open();
+          return;
+        } catch (rzpErr: any) {
+          throw rzpErr;
         }
       }
 
       setActiveJob(jobData as PrintJobRecord);
-      setStep(6); // Advance to live tracker (Step 6)
+      setStep(6); // Advance to live tracker (Step 6) for cash payments
     } catch (err: any) {
       console.error("Submission error:", err);
       setSubmissionError(err?.message || "Could not submit print job. Please try again.");

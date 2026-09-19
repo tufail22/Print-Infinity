@@ -78,6 +78,10 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
             _dispatcherQueue?.TryEnqueue(() =>
             {
                 NotificationMessage = e.Message;
+                if (e.IsError)
+                {
+                    _queueService.ReleaseApprovedJob(e.JobId);
+                }
             });
         };
 
