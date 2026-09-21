@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   UploadCloud,
@@ -48,16 +48,16 @@ function PrintWizardContent() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>("upi");
 
   // Step navigation integrated with browser history (popstate / back gestures)
-  const goToStep = (newStep: number, replace = false) => {
+  const goToStep = useCallback((newStep: number, replace = false) => {
     if (typeof window !== "undefined") {
       if (replace) {
         window.history.replaceState({ step: newStep }, "", "");
-      } else if (newStep !== step) {
+      } else {
         window.history.pushState({ step: newStep }, "", "");
       }
     }
     setStep(newStep);
-  };
+  }, []);
 
   // Browser back navigation listener
   useEffect(() => {
@@ -111,7 +111,7 @@ function PrintWizardContent() {
       }
     }
     checkActiveJobRecovery();
-  }, []);
+  }, [goToStep]);
 
   // Check if any uploaded files are images
   const hasImages = files.some(
@@ -148,7 +148,7 @@ function PrintWizardContent() {
         photoSize: prev.photoSize || "Full page",
       }));
     }
-  }, [hasImages]);
+  }, [hasImages, settings.colorMode]);
 
   // Calculate total pages across uploaded files
   const totalPages = files.reduce((sum, f) => sum + f.totalPages, 0) || 1;

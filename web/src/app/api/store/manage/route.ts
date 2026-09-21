@@ -9,7 +9,7 @@ const SUPABASE_ANON_KEY =
 
 export async function GET(req: NextRequest) {
   try {
-    const supabaseKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+    const supabaseKey = SUPABASE_ANON_KEY || SUPABASE_SERVICE_ROLE_KEY;
     const supabase = createClient(SUPABASE_URL, supabaseKey, {
       auth: { persistSession: false },
     });

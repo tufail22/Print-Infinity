@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Store,
@@ -94,7 +94,7 @@ export default function AdminPage() {
   }, []);
 
   // Load store details dynamically for logged-in storekeeper
-  const loadStoreData = async (userId?: string) => {
+  const loadStoreData = useCallback(async (userId?: string) => {
     try {
       setLoadingData(true);
       const uid = userId || session?.user?.id;
@@ -112,13 +112,13 @@ export default function AdminPage() {
     } finally {
       setLoadingData(false);
     }
-  };
+  }, [session?.user?.id]);
 
   useEffect(() => {
     if (session?.user?.id) {
       loadStoreData(session.user.id);
     }
-  }, [session]);
+  }, [session?.user?.id, loadStoreData]);
 
   // Handle Login
   const handleLogin = async (e: React.FormEvent) => {
