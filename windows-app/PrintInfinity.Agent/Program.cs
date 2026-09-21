@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
@@ -27,6 +29,14 @@ public static class Program
         "PrintInfinityAgent",
         "startup.log"
     );
+
+    // ── Async Log Writer ──────────────────────────────────────────────────
+    // Log() enqueues immediately and returns — never blocks the caller.
+    // A single dedicated background thread drains the channel and writes to disk.
+    private static readonly Channel<string> _logChannel =
+        Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+
+    private static readonly Thread _logThread = CreateLogThread();
 
     [STAThread]
     public static void Main(string[] args)
@@ -241,21 +251,69 @@ public static class Program
         }
     }
 
+    /// <summary>
+    /// Enqueues a log message for async off-thread disk write. Never blocks the caller.
+    /// </summary>
     public static void Log(string message)
+    {
+        var line = $"[{DateTime.Now:HH:mm:ss.fff}] {message}";
+        Console.WriteLine(line);
+        _logChannel.Writer.TryWrite(line);
+    }
+
+    /// <summary>Flush all pending log entries synchronously. Call before process exit.</summary>
+    public static void FlushLog()
+    {
+        _logChannel.Writer.Complete();
+        _logThread.Join(TimeSpan.FromSeconds(3));
+    }
+
+    private static Thread CreateLogThread()
+    {
+        var t = new Thread(DrainLogChannel)
+        {
+            Name = "PrintInfinity.LogWriter",
+            IsBackground = true,
+            Priority = ThreadPriority.BelowNormal
+        };
+        t.Start();
+        return t;
+    }
+
+    private static void DrainLogChannel()
     {
         try
         {
-            Console.WriteLine(message);
             string? dir = Path.GetDirectoryName(LogFilePath);
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
             {
                 Directory.CreateDirectory(dir);
             }
-            File.AppendAllText(LogFilePath, $"[{DateTime.Now:HH:mm:ss.fff}] {message}{Environment.NewLine}");
+
+            // Batch writes to amortize disk I/O cost
+            var batch = new List<string>(16);
+            while (_logChannel.Reader.WaitToReadAsync().AsTask().GetAwaiter().GetResult())
+            {
+                batch.Clear();
+                while (_logChannel.Reader.TryRead(out var line))
+                    batch.Add(line);
+
+                if (batch.Count > 0)
+                {
+                    try
+                    {
+                        File.AppendAllLines(LogFilePath, batch);
+                    }
+                    catch
+                    {
+                        // Ignore transient disk errors
+                    }
+                }
+            }
         }
         catch
         {
-            // Ignore logging failures
+            // Log thread must not crash the process
         }
     }
 }

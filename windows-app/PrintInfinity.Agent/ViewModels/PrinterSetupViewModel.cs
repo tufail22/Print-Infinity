@@ -205,12 +205,12 @@ public partial class PrinterSetupViewModel : ObservableObject, IDisposable
                 foreach (var printer in Printers.ToList())
                 {
                     await _windowsPrinterService.UpdatePrinterStatusAsync(printer);
+                    // FIX 10: PrinterItem properties are already [ObservableProperty].
+                    // Each assignment to printer.IsOnline / printer.StatusText raises
+                    // its own PropertyChanged — no need to invalidate the whole collection.
                 }
-
-                _dispatcherQueue?.TryEnqueue(() =>
-                {
-                    OnPropertyChanged(nameof(Printers));
-                });
+                // NOTE: Do NOT call OnPropertyChanged(nameof(Printers)) here.
+                // That triggers WinUI to re-render every item even when nothing changed.
             }
             catch
             {
@@ -223,6 +223,19 @@ public partial class PrinterSetupViewModel : ObservableObject, IDisposable
     {
         _pollingTimer?.Dispose();
         _pollingTimer = null;
+    }
+
+    // FIX 9: Pause WMI polling when the window is hidden to tray.
+    // Called by MainWindow when it hides; resumed when restored.
+    public void PausePolling()
+    {
+        _pollingTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+    }
+
+    public void ResumePolling()
+    {
+        // Re-arm immediately then every 5 seconds.
+        _pollingTimer?.Change(TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(5));
     }
 
     public void Dispose()

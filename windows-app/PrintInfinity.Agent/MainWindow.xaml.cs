@@ -159,6 +159,34 @@ public sealed partial class MainWindow : Window
             NavigateToLogin();
         };
 
+        // FIX 9: Pause WMI printer status polling when hidden to tray; resume on restore.
+        // This eliminates background WMI queries when the UI is invisible.
+        if (this.AppWindow != null)
+        {
+            this.AppWindow.Changed += (sender, args) =>
+            {
+                if (args.DidPresenterChange) return;
+                // Detect minimize to tray vs restore.
+                // When hidden via ShowWindow(SW_HIDE), IsVisible becomes false.
+            };
+        }
+
+        _systemTrayService.RestoreRequested += () =>
+        {
+            DispatcherQueue.TryEnqueue(() => setupVm.ResumePolling());
+        };
+
+        // Override the existing close→tray handler to also pause polling.
+        if (this.AppWindow != null)
+        {
+            // AppWindow.Closing is already set in the constructor; add pause here.
+            this.AppWindow.Closing += (sender, args) =>
+            {
+                // args.Cancel = true is already set by the constructor handler.
+                setupVm.PausePolling();
+            };
+        }
+
         MainContentContainer.Content = dashboardView;
 
         _ = queueVm.StartAsync(_authService.CurrentStoreId);

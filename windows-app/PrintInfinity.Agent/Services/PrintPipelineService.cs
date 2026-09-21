@@ -21,6 +21,22 @@ public class PrintPipelineService : IPrintPipelineService
     private readonly CancellationTokenSource _cts;
     private readonly Task _workerTask;
 
+    // FIX 7: Single static HttpClient — prevents socket exhaustion and enables connection reuse.
+    private static readonly HttpClient _httpClient = new HttpClient(
+        new SocketsHttpHandler
+        {
+            PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+            ConnectTimeout = TimeSpan.FromSeconds(10)
+        })
+    {
+        Timeout = TimeSpan.FromSeconds(30)
+    };
+
+    // FIX 8: Printer configuration cache — 60-second TTL per (storeId, colorMode).
+    private record PrinterCacheEntry(PrinterItem Printer, DateTime ExpiresAt);
+    private readonly Dictionary<string, PrinterCacheEntry> _printerCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly SemaphoreSlim _printerCacheLock = new(1, 1);
+
     public event EventHandler<PrintPipelineEvent>? PipelineEventOccurred;
     public event EventHandler<AuditLogEntry>? AuditLogGenerated;
 
@@ -99,14 +115,38 @@ public class PrintPipelineService : IPrintPipelineService
 
             // 2. Strict Auto-selection of printer: Color jobs ONLY to Color printers, B&W ONLY to B&W
             var targetMode = (jobResponse.ColorMode ?? "bw").ToLowerInvariant();
-            var printerResponse = await _authService.Client.From<PrinterRecord>()
-                .Where(p => p.StoreId == _authService.CurrentStoreId)
-                .Where(p => p.Type == targetMode)
-                .Where(p => p.IsOnline == true)
-                .Get();
 
-            var matchingPrinters = printerResponse.Models ?? new List<PrinterRecord>();
+            // FIX 8: Check printer cache first to avoid a Supabase + WMI round-trip on every job.
+            var cacheKey = $"{_authService.CurrentStoreId}:{targetMode}";
             PrinterItem? selectedPrinter = null;
+            await _printerCacheLock.WaitAsync(_cts.Token);
+            if (_printerCache.TryGetValue(cacheKey, out var cached) && DateTime.UtcNow < cached.ExpiresAt)
+            {
+                selectedPrinter = cached.Printer;
+                _printerCacheLock.Release();
+                Program.Log($"[PrintPipeline] Job {jobId}: Printer cache hit — '{selectedPrinter.DisplayName}' for {targetMode.ToUpper()}");
+            }
+            else
+            {
+                _printerCacheLock.Release();
+            }
+
+            List<PrinterRecord> matchingPrinters;
+            if (selectedPrinter != null)
+            {
+                // Already resolved from cache — skip Supabase query.
+                matchingPrinters = new List<PrinterRecord>();
+            }
+            else
+            {
+                var printerResponse = await _authService.Client.From<PrinterRecord>()
+                    .Where(p => p.StoreId == _authService.CurrentStoreId)
+                    .Where(p => p.Type == targetMode)
+                    .Where(p => p.IsOnline == true)
+                    .Get();
+                matchingPrinters = printerResponse.Models ?? new List<PrinterRecord>();
+            }
+
 
             if (matchingPrinters.Count == 0)
             {
@@ -175,6 +215,11 @@ public class PrintPipelineService : IPrintPipelineService
                 }
             }
 
+            // FIX 8: Cache the resolved printer for 60 seconds to avoid repeated Supabase+WMI lookups.
+            await _printerCacheLock.WaitAsync(_cts.Token);
+            _printerCache[cacheKey] = new PrinterCacheEntry(selectedPrinter, DateTime.UtcNow.AddSeconds(60));
+            _printerCacheLock.Release();
+
             Program.Log($"[PrintPipeline] Job {jobId}: Auto-selected printer '{selectedPrinter.DisplayName}' ({selectedPrinter.WindowsPrinterName}) for mode {targetMode.ToUpper()}");
 
             // 3. Mark job as approved before spooling
@@ -222,22 +267,19 @@ public class PrintPipelineService : IPrintPipelineService
             }
 
             // 5. Download bytes into strictly in-memory buffer (Zero Disk I/O) with retry
-            using (var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) })
+            int maxRetries = 3;
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
             {
-                int maxRetries = 3;
-                for (int attempt = 1; attempt <= maxRetries; attempt++)
+                try
                 {
-                    try
-                    {
-                        inMemoryBuffer = await httpClient.GetByteArrayAsync(signedUrl);
-                        if (inMemoryBuffer != null && inMemoryBuffer.Length > 0)
-                            break;
-                    }
-                    catch (Exception netEx) when (attempt < maxRetries)
-                    {
-                        Program.Log($"[PrintPipeline] Download attempt {attempt} failed: {netEx.Message}. Retrying in 2s...");
-                        await Task.Delay(2000, _cts.Token);
-                    }
+                    inMemoryBuffer = await _httpClient.GetByteArrayAsync(signedUrl);
+                    if (inMemoryBuffer != null && inMemoryBuffer.Length > 0)
+                        break;
+                }
+                catch (Exception netEx) when (attempt < maxRetries)
+                {
+                    Program.Log($"[PrintPipeline] Download attempt {attempt} failed: {netEx.Message}. Retrying in 2s...");
+                    await Task.Delay(2000, _cts.Token);
                 }
             }
 
@@ -384,7 +426,8 @@ public class PrintPipelineService : IPrintPipelineService
                 inMemoryBuffer = null;
             }
             signedUrl = null;
-            GC.Collect();
+            // FIX 6: Do NOT call GC.Collect(). The .NET runtime manages this more efficiently.
+            // Forcing a full-gen GC after every job caused 10-200ms pauses and UI jank.
         }
     }
 

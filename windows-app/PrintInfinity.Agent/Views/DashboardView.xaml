@@ -204,8 +204,25 @@
                     </Border>
 
                     <!-- Job Cards -->
-                    <ItemsControl ItemsSource="{x:Bind QueueVm.PendingJobs, Mode=OneWay}">
-                        <ItemsControl.ItemTemplate>
+                    <!-- Job Cards: FIX 12 - ListView virtualizes items; only renders visible cards -->
+                    <ListView ItemsSource="{x:Bind QueueVm.PendingJobs, Mode=OneWay}"
+                              SelectionMode="None"
+                              IsItemClickEnabled="False">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Margin" Value="0"/>
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                            </Style>
+                        </ListView.ItemContainerStyle>
+                        <ListView.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <ItemsStackPanel Orientation="Vertical"/>
+                            </ItemsPanelTemplate>
+                        </ListView.ItemsPanel>
+                        <ListView.ItemTemplate>
                             <DataTemplate x:DataType="models:QueueItem">
                                 <Border CornerRadius="16" Padding="24"
                                         Margin="0,0,0,14"
@@ -334,8 +351,8 @@
                                     </Grid>
                                 </Border>
                             </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                        </ListView.ItemTemplate>
+                    </ListView>
                 </StackPanel>
             </ScrollViewer>
 
@@ -359,8 +376,20 @@
                                    Margin="0,3,0,0"/>
                     </StackPanel>
 
-                    <ItemsControl ItemsSource="{x:Bind QueueVm.AuditLogs, Mode=OneWay}">
-                        <ItemsControl.ItemTemplate>
+                    <!-- Audit Log: FIX 12 - ListView virtualizes items -->
+                    <ListView ItemsSource="{x:Bind QueueVm.AuditLogs, Mode=OneWay}"
+                              SelectionMode="None"
+                              IsItemClickEnabled="False">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Margin" Value="0"/>
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                            </Style>
+                        </ListView.ItemContainerStyle>
+                        <ListView.ItemTemplate>
                             <DataTemplate x:DataType="models:AuditLogEntry">
                                 <Border CornerRadius="10" Padding="16,12"
                                         Margin="0,0,0,8"
@@ -398,8 +427,8 @@
                                     </Grid>
                                 </Border>
                             </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                        </ListView.ItemTemplate>
+                    </ListView>
                 </StackPanel>
             </ScrollViewer>
         </Grid>

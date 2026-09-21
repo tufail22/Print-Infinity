@@ -21,6 +21,8 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
 
     public Microsoft.UI.Xaml.XamlRoot? XamlRoot { get; set; }
 
+    private const int MaxAuditLogs = 200;
+
     public ObservableCollection<QueueItem> PendingJobs { get; } = new();
     public ObservableCollection<AuditLogEntry> AuditLogs { get; } = new();
 
@@ -90,6 +92,9 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
             _dispatcherQueue?.TryEnqueue(() =>
             {
                 AuditLogs.Insert(0, log);
+                // FIX 11: Prevent unbounded memory growth in long-running sessions.
+                if (AuditLogs.Count > MaxAuditLogs)
+                    AuditLogs.RemoveAt(AuditLogs.Count - 1);
             });
         };
     }
