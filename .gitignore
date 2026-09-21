@@ -117,6 +117,8 @@ _pkginfo.txt
 *.msix
 *.appxbundle
 *.msixbundle
+*.zip
+*.zip.sha256
 Generated Files/
 [Gg]enerated\ [Ff]iles/
 
