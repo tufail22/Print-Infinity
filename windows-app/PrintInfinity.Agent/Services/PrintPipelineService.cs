@@ -113,114 +113,92 @@ public class PrintPipelineService : IPrintPipelineService
                 return;
             }
 
-            // 2. Strict Auto-selection of printer: Color jobs ONLY to Color printers, B&W ONLY to B&W
+            // 2. Priority-ordered auto-selection with automatic fallback for offline printers
             var targetMode = (jobResponse.ColorMode ?? "bw").ToLowerInvariant();
+            var localWinService = new WindowsPrinterService();
 
-            // FIX 8: Check printer cache first to avoid a Supabase + WMI round-trip on every job.
-            var cacheKey = $"{_authService.CurrentStoreId}:{targetMode}";
+            // Fetch configured printers for this store matching targetMode
+            var printerResponse = await _authService.Client.From<PrinterRecord>()
+                .Where(p => p.StoreId == _authService.CurrentStoreId)
+                .Where(p => p.Type == targetMode)
+                .Get();
+            var configuredPrinters = printerResponse?.Models ?? new List<PrinterRecord>();
+
+            // Order candidates by Priority ASC (1 is highest priority), then Name
+            var priorityOrdered = configuredPrinters
+                .OrderBy(p => p.Priority > 0 ? p.Priority : 1)
+                .ThenBy(p => p.Name)
+                .ToList();
+
             PrinterItem? selectedPrinter = null;
-            await _printerCacheLock.WaitAsync(_cts.Token);
-            if (_printerCache.TryGetValue(cacheKey, out var cached) && DateTime.UtcNow < cached.ExpiresAt)
-            {
-                selectedPrinter = cached.Printer;
-                _printerCacheLock.Release();
-                Program.Log($"[PrintPipeline] Job {jobId}: Printer cache hit — '{selectedPrinter.DisplayName}' for {targetMode.ToUpper()}");
-            }
-            else
-            {
-                _printerCacheLock.Release();
-            }
 
-            List<PrinterRecord> matchingPrinters;
-            if (selectedPrinter != null)
+            // Iterate candidates in priority order; pick the first one that is currently ONLINE
+            foreach (var candidate in priorityOrdered)
             {
-                // Already resolved from cache — skip Supabase query.
-                matchingPrinters = new List<PrinterRecord>();
-            }
-            else
-            {
-                var printerResponse = await _authService.Client.From<PrinterRecord>()
-                    .Where(p => p.StoreId == _authService.CurrentStoreId)
-                    .Where(p => p.Type == targetMode)
-                    .Where(p => p.IsOnline == true)
-                    .Get();
-                matchingPrinters = printerResponse.Models ?? new List<PrinterRecord>();
-            }
-
-
-            if (matchingPrinters.Count == 0)
-            {
-                // Fallback: Check local Windows printers strictly tagged with the exact targetMode
-                var localWinService = new WindowsPrinterService();
-                var localPrinters = await localWinService.GetInstalledPrintersAsync();
-                var candidate = localPrinters.FirstOrDefault(p => string.Equals(p.Type, targetMode, StringComparison.OrdinalIgnoreCase) && p.IsOnline);
-
-                if (candidate != null)
+                var checkItem = new PrinterItem
                 {
-                    selectedPrinter = candidate;
+                    Id = candidate.Id,
+                    WindowsPrinterName = candidate.WindowsPrinterName,
+                    DisplayName = candidate.Name,
+                    Type = candidate.Type,
+                    Connection = candidate.Connection,
+                    Priority = candidate.Priority
+                };
+
+                // Fast Win32 spooler hardware check (< 0.1ms)
+                WindowsPrinterService.CheckSpoolerStatus(checkItem);
+
+                if (checkItem.IsOnline)
+                {
+                    selectedPrinter = checkItem;
+                    Program.Log($"[PrintPipeline] Job {jobId}: Selected Priority #{candidate.Priority} printer '{checkItem.DisplayName}' ({checkItem.WindowsPrinterName}) for mode {targetMode.ToUpper()}");
+                    break;
                 }
                 else
                 {
-                    var modeTitle = targetMode == "color" ? "Color" : "Black & White";
-                    var friendlyError = $"No online {modeTitle} printer found. Please check that your {modeTitle} printer is turned on, has paper, and is connected to this PC.";
-                    
-                    jobResponse.Status = "failed";
-                    jobResponse.RejectionReason = friendlyError;
-                    jobResponse.UpdatedAt = DateTime.UtcNow;
-                    await _authService.Client.From<PrintJobRecord>().Update(jobResponse);
-
-                    NotifyEvent(jobId, "Failed", friendlyError, isError: true);
-                    _systemTrayService.ShowNotification("Printer Offline", friendlyError);
-                    return;
+                    Program.Log($"[PrintPipeline] Job {jobId}: Priority #{candidate.Priority} printer '{candidate.Name}' is OFFLINE ({checkItem.StatusText}). Falling through to next priority printer...");
                 }
             }
-            else if (selectedPrinter == null)
+
+            // Fallback: If no configured printer was online, check local Windows printers matching targetMode
+            if (selectedPrinter == null)
             {
-                // Deduplicate online candidates by WindowsPrinterName
-                var uniquePrinters = matchingPrinters
-                    .GroupBy(p => p.WindowsPrinterName, StringComparer.OrdinalIgnoreCase)
-                    .Select(g => g.First())
+                var localPrinters = await localWinService.GetInstalledPrintersAsync();
+                var localCandidates = localPrinters
+                    .Where(p => string.Equals(p.Type, targetMode, StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(p => p.Priority > 0 ? p.Priority : 1)
                     .ToList();
 
-                if (uniquePrinters.Count == 1)
+                foreach (var lp in localCandidates)
                 {
-                    var p = uniquePrinters[0];
-                    selectedPrinter = new PrinterItem
+                    WindowsPrinterService.CheckSpoolerStatus(lp);
+                    if (lp.IsOnline)
                     {
-                        WindowsPrinterName = p.WindowsPrinterName,
-                        DisplayName = p.Name,
-                        Type = p.Type,
-                        Connection = p.Connection,
-                        IsOnline = p.IsOnline
-                    };
-                }
-                else
-                {
-                    // Multiple online printers match: auto-select primary hardware printer
-                    // Color -> HP Smart Tank
-                    // B&W   -> Samsung M267x
-                    var primary = uniquePrinters.FirstOrDefault(c =>
-                        (targetMode == "color" && c.WindowsPrinterName.Contains("HP", StringComparison.OrdinalIgnoreCase)) ||
-                        (targetMode == "bw" && c.WindowsPrinterName.Contains("Samsung", StringComparison.OrdinalIgnoreCase))
-                    ) ?? uniquePrinters.First();
-
-                    selectedPrinter = new PrinterItem
-                    {
-                        WindowsPrinterName = primary.WindowsPrinterName,
-                        DisplayName = primary.Name,
-                        Type = primary.Type,
-                        Connection = primary.Connection,
-                        IsOnline = primary.IsOnline
-                    };
+                        selectedPrinter = lp;
+                        Program.Log($"[PrintPipeline] Job {jobId}: Fallback selected online local printer '{lp.DisplayName}' for mode {targetMode.ToUpper()}");
+                        break;
+                    }
                 }
             }
 
-            // FIX 8: Cache the resolved printer for 60 seconds to avoid repeated Supabase+WMI lookups.
-            await _printerCacheLock.WaitAsync(_cts.Token);
-            _printerCache[cacheKey] = new PrinterCacheEntry(selectedPrinter, DateTime.UtcNow.AddSeconds(60));
-            _printerCacheLock.Release();
+            // If still null, EVERY printer tagged for this mode is offline!
+            if (selectedPrinter == null)
+            {
+                var modeTitle = targetMode == "color" ? "Color" : "Black & White";
+                var configuredCount = priorityOrdered.Count;
+                var friendlyError = configuredCount > 1
+                    ? $"All {configuredCount} configured {modeTitle} printers are currently offline. Please turn on your {modeTitle} printer and connect it to this PC."
+                    : $"No online {modeTitle} printer found. Please check that your {modeTitle} printer is turned on, has paper, and is connected to this PC.";
 
-            Program.Log($"[PrintPipeline] Job {jobId}: Auto-selected printer '{selectedPrinter.DisplayName}' ({selectedPrinter.WindowsPrinterName}) for mode {targetMode.ToUpper()}");
+                jobResponse.Status = "failed";
+                jobResponse.RejectionReason = friendlyError;
+                jobResponse.UpdatedAt = DateTime.UtcNow;
+                await _authService.Client.From<PrintJobRecord>().Update(jobResponse);
+
+                NotifyEvent(jobId, "Failed", friendlyError, isError: true);
+                _systemTrayService.ShowNotification("Printer Offline", friendlyError);
+                return;
+            }
 
             // 3. Mark job as approved before spooling
             jobResponse.Status = "approved";

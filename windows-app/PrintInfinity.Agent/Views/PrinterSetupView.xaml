@@ -152,10 +152,11 @@
                                              Padding="10,8"/>
                                 </StackPanel>
 
-                                <Grid ColumnSpacing="16">
+                                <Grid ColumnSpacing="14">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
                                     <!-- Color / B&W -->
@@ -163,7 +164,7 @@
                                         <TextBlock Text="PRINT TYPE" FontSize="10"
                                                    Foreground="#64748B"
                                                    FontWeight="SemiBold"/>
-                                        <StackPanel Orientation="Horizontal" Spacing="12">
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
                                             <RadioButton Content="B&amp;W"
                                                          IsChecked="{x:Bind IsBw, Mode=TwoWay}"
                                                          GroupName="{x:Bind WindowsPrinterName}"
@@ -180,7 +181,7 @@
                                         <TextBlock Text="CONNECTION" FontSize="10"
                                                    Foreground="#64748B"
                                                    FontWeight="SemiBold"/>
-                                        <StackPanel Orientation="Horizontal" Spacing="12">
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
                                             <RadioButton Content="USB"
                                                          IsChecked="{x:Bind IsUsb, Mode=TwoWay}"
                                                          GroupName="{x:Bind PortName}"
@@ -190,6 +191,22 @@
                                                          GroupName="{x:Bind PortName}"
                                                          Foreground="#334155"/>
                                         </StackPanel>
+                                    </StackPanel>
+
+                                    <!-- Priority Fallback Order -->
+                                    <StackPanel Grid.Column="2" Spacing="5">
+                                        <TextBlock Text="PRIORITY" FontSize="10"
+                                                   Foreground="#64748B"
+                                                   FontWeight="SemiBold"/>
+                                        <NumberBox Value="{x:Bind PriorityValue, Mode=TwoWay}"
+                                                   SpinButtonPlacementMode="Inline"
+                                                   Minimum="1" Maximum="20" SmallChange="1"
+                                                   Width="80"
+                                                   ToolTipService.ToolTip="1 = Primary/Highest priority. If offline, automatically falls back to #2, #3, etc."
+                                                   Background="#F8FAFC"
+                                                   Foreground="#0F172A"
+                                                   BorderBrush="#CBD5E1"
+                                                   CornerRadius="8"/>
                                     </StackPanel>
                                 </Grid>
                             </StackPanel>

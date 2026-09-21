@@ -197,6 +197,7 @@ public partial class PrinterSetupViewModel : ObservableObject, IDisposable
 
     private void StartPeriodicQueuePing()
     {
+        // Relaxed default 60s polling when not actively viewing Hardware Printers tab
         _pollingTimer = new Timer(async _ =>
         {
             if (_isDisposed) return;
@@ -205,24 +206,33 @@ public partial class PrinterSetupViewModel : ObservableObject, IDisposable
                 foreach (var printer in Printers.ToList())
                 {
                     await _windowsPrinterService.UpdatePrinterStatusAsync(printer);
-                    // FIX 10: PrinterItem properties are already [ObservableProperty].
-                    // Each assignment to printer.IsOnline / printer.StatusText raises
-                    // its own PropertyChanged — no need to invalidate the whole collection.
                 }
-                // NOTE: Do NOT call OnPropertyChanged(nameof(Printers)) here.
-                // That triggers WinUI to re-render every item even when nothing changed.
             }
             catch
             {
                 // Ignore transient polling exceptions
             }
-        }, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+        }, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(60));
     }
 
     private void StopPeriodicQueuePing()
     {
         _pollingTimer?.Dispose();
         _pollingTimer = null;
+    }
+
+    public void SetActiveTab(bool isPrintersTabActive)
+    {
+        if (isPrintersTabActive)
+        {
+            // Active hardware view: immediate refresh + 10s poll
+            _pollingTimer?.Change(TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(10));
+        }
+        else
+        {
+            // Dormant queue view: relax to 60s
+            _pollingTimer?.Change(TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
+        }
     }
 
     // FIX 9: Pause WMI polling when the window is hidden to tray.
@@ -234,8 +244,8 @@ public partial class PrinterSetupViewModel : ObservableObject, IDisposable
 
     public void ResumePolling()
     {
-        // Re-arm immediately then every 5 seconds.
-        _pollingTimer?.Change(TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(5));
+        // Re-arm immediately then every 10 seconds.
+        _pollingTimer?.Change(TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(10));
     }
 
     public void Dispose()

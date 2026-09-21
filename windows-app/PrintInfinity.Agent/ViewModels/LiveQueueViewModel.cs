@@ -48,6 +48,10 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
 
     public bool HasNotification => !string.IsNullOrWhiteSpace(NotificationMessage);
 
+    private readonly EventHandler<QueueItem> _onJobApproved;
+    private readonly EventHandler<PrintPipelineEvent> _onPipelineEventOccurred;
+    private readonly EventHandler<AuditLogEntry> _onAuditLogGenerated;
+
     public LiveQueueViewModel(
         IJobQueueService queueService,
         IPrintPipelineService printPipelineService,
@@ -58,9 +62,7 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
         _systemTrayService = systemTrayService;
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
 
-        _queueService.JobArrived += OnJobArrived;
-        _queueService.JobRemoved += OnJobRemoved;
-        _queueService.JobApproved += (s, job) =>
+        _onJobApproved = (s, job) =>
         {
             _dispatcherQueue?.TryEnqueue(async () =>
             {
@@ -75,7 +77,7 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
             });
         };
 
-        _printPipelineService.PipelineEventOccurred += (s, e) =>
+        _onPipelineEventOccurred = (s, e) =>
         {
             _dispatcherQueue?.TryEnqueue(() =>
             {
@@ -87,16 +89,23 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
             });
         };
 
-        _printPipelineService.AuditLogGenerated += (s, log) =>
+        _onAuditLogGenerated = (s, log) =>
         {
             _dispatcherQueue?.TryEnqueue(() =>
             {
                 AuditLogs.Insert(0, log);
-                // FIX 11: Prevent unbounded memory growth in long-running sessions.
-                if (AuditLogs.Count > MaxAuditLogs)
+                while (AuditLogs.Count > MaxAuditLogs)
+                {
                     AuditLogs.RemoveAt(AuditLogs.Count - 1);
+                }
             });
         };
+
+        _queueService.JobArrived += OnJobArrived;
+        _queueService.JobRemoved += OnJobRemoved;
+        _queueService.JobApproved += _onJobApproved;
+        _printPipelineService.PipelineEventOccurred += _onPipelineEventOccurred;
+        _printPipelineService.AuditLogGenerated += _onAuditLogGenerated;
     }
 
     public async Task StartAsync(Guid storeId)
@@ -228,7 +237,9 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
     {
         _queueService.JobArrived -= OnJobArrived;
         _queueService.JobRemoved -= OnJobRemoved;
-        _queueService.Dispose();
-        _printPipelineService.Dispose();
+        _queueService.JobApproved -= _onJobApproved;
+        _printPipelineService.PipelineEventOccurred -= _onPipelineEventOccurred;
+        _printPipelineService.AuditLogGenerated -= _onAuditLogGenerated;
+        _queueService.StopListening();
     }
 }

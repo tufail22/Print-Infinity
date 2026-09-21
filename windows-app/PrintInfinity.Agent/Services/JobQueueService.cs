@@ -18,6 +18,7 @@ public interface IJobQueueService : IDisposable
     event EventHandler<QueueItem>? JobApproved;
 
     Task StartListeningAsync(Guid storeId);
+    void StopListening();
     Task<List<QueueItem>> FetchPendingJobsAsync(Guid storeId);
     Task<bool> ApproveJobAsync(Guid jobId);
     Task<bool> RejectJobAsync(Guid jobId, string reason);
@@ -57,7 +58,11 @@ public class JobQueueService : IJobQueueService
 
     public async Task StartListeningAsync(Guid storeId)
     {
+        // Stop any previous subscription or timers cleanly before starting new one
+        StopListening();
+
         _storeId = storeId;
+        _isDisposed = false;
         await _authService.InitializeAsync();
 
         // 1. Initial query for existing pending_approval jobs
@@ -457,12 +462,10 @@ public class JobQueueService : IJobQueueService
         }
     }
 
-    public void Dispose()
+    public void StopListening()
     {
-        _isDisposed = true;
         _fallbackPollingTimer?.Dispose();
         _fallbackPollingTimer = null;
-        _refreshLock.Dispose();
         try
         {
             _realtimeChannel?.Unsubscribe();
@@ -471,5 +474,14 @@ public class JobQueueService : IJobQueueService
         {
             // Ignore unsubscribe errors
         }
+        _realtimeChannel = null;
+        _realtimeHealthy = false;
+    }
+
+    public void Dispose()
+    {
+        _isDisposed = true;
+        StopListening();
+        _refreshLock.Dispose();
     }
 }

@@ -60,6 +60,7 @@ public class PrinterSyncService : IPrinterSyncService
                 local.DisplayName = remote.Name;
                 local.Type = remote.Type;
                 local.Connection = remote.Connection;
+                local.Priority = remote.Priority > 0 ? remote.Priority : 1;
                 local.IsCloudSynced = true;
                 local.LastSavedAtText = "Synced with Cloud";
             }
@@ -95,6 +96,7 @@ public class PrinterSyncService : IPrinterSyncService
                 existing.Name = displayName;
                 existing.Type = normalizedType;
                 existing.Connection = normalizedConnection;
+                existing.Priority = Math.Max(1, printer.Priority);
                 existing.IsOnline = printer.IsOnline;
                 existing.UpdatedAt = DateTime.UtcNow;
 
@@ -114,6 +116,7 @@ public class PrinterSyncService : IPrinterSyncService
                     Name = displayName,
                     Type = normalizedType,
                     Connection = normalizedConnection,
+                    Priority = Math.Max(1, printer.Priority),
                     WindowsPrinterName = printer.WindowsPrinterName,
                     IsOnline = printer.IsOnline
                 };

@@ -27,6 +27,23 @@ public partial class PrinterItem : ObservableObject
     private string _portName = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PriorityValue))]
+    private int _priority = 1;
+
+    public double PriorityValue
+    {
+        get => Priority;
+        set
+        {
+            if (double.IsNaN(value) || value < 1)
+                Priority = 1;
+            else
+                Priority = (int)value;
+            OnPropertyChanged(nameof(PriorityValue));
+        }
+    }
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusBadgeColor))]
     [NotifyPropertyChangedFor(nameof(StatusBadgeIcon))]
     private bool _isOnline;

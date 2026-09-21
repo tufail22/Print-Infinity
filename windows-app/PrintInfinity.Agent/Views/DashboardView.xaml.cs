@@ -48,16 +48,27 @@ public sealed partial class DashboardView : UserControl
         BtnTabAudit.IsChecked    = tab == "Audit";
     }
 
-    private void OnTabQueueClick(object sender, RoutedEventArgs e)    => SelectTab("Queue");
+    private void OnTabQueueClick(object sender, RoutedEventArgs e)
+    {
+        SelectTab("Queue");
+        PrinterSetupVm.SetActiveTab(false);
+    }
+
     private async void OnTabPrintersClick(object sender, RoutedEventArgs e)
     {
         SelectTab("Printers");
+        PrinterSetupVm.SetActiveTab(true);
         if (PrinterSetupVm.Printers.Count == 0)
         {
             await PrinterSetupVm.LoadPrintersAsync();
         }
     }
-    private void OnTabAuditClick(object sender, RoutedEventArgs e)    => SelectTab("Audit");
+
+    private void OnTabAuditClick(object sender, RoutedEventArgs e)
+    {
+        SelectTab("Audit");
+        PrinterSetupVm.SetActiveTab(false);
+    }
 
     // ── Job Actions ───────────────────────────────────────────────────────
 

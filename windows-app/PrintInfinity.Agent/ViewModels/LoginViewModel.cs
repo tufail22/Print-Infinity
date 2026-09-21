@@ -151,19 +151,19 @@ public partial class LoginViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            Program.Log("Checking auto-login with stored credentials...");
+            Program.Log("LoginViewModel: Verifying stored Supabase session with cloud server...");
             var restored = await _authService.TryRestoreSessionAsync();
             if (restored)
             {
-                Program.Log("Auto-login succeeded!");
+                Program.Log("LoginViewModel: Verified valid session with Supabase! Navigating to dashboard...");
                 LoginSucceeded?.Invoke();
                 return true;
             }
-            Program.Log("No stored session found or restore returned false.");
+            Program.Log("LoginViewModel: No valid verified Supabase session found. Displaying login screen.");
         }
         catch (Exception ex)
         {
-            Program.Log($"Auto-login exception: {ex}");
+            Program.Log($"LoginViewModel: Session check exception: {ex.Message}. Displaying login screen.");
         }
         finally
         {

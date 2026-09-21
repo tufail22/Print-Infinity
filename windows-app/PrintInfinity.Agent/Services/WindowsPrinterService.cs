@@ -68,29 +68,8 @@ public class WindowsPrinterService : IWindowsPrinterService
     {
         return Task.Run(() =>
         {
-            try
-            {
-                var escapedName = printer.WindowsPrinterName.Replace("\\", "\\\\").Replace("'", "\\'");
-                using var searcher = new ManagementObjectSearcher(
-                    $"SELECT WorkOffline, PrinterStatus, ExtendedPrinterStatus FROM Win32_Printer WHERE Name = '{escapedName}'"
-                );
-
-                using var collection = searcher.Get();
-                foreach (ManagementObject mo in collection)
-                {
-                    var (isOnline, statusText) = EvaluateStatus(mo);
-                    printer.IsOnline = isOnline;
-                    printer.StatusText = statusText;
-                    return;
-                }
-
-                // If not found in WMI, fallback to Win32 Spooler
-                CheckSpoolerStatus(printer);
-            }
-            catch
-            {
-                CheckSpoolerStatus(printer);
-            }
+            // Fast Win32 Spooler API: Microsecond latency, no WMI COM overhead or CPU spikes
+            CheckSpoolerStatus(printer);
         });
     }
 
@@ -203,7 +182,7 @@ public class WindowsPrinterService : IWindowsPrinterService
         return list;
     }
 
-    private static void CheckSpoolerStatus(PrinterItem item)
+    public static void CheckSpoolerStatus(PrinterItem item)
     {
         if (!OpenPrinter(item.WindowsPrinterName, out var hPrinter, IntPtr.Zero))
         {

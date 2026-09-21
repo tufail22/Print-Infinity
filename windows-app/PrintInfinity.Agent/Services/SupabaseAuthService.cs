@@ -106,7 +106,17 @@ public class SupabaseAuthService : ISupabaseAuthService
             CurrentStoreId = AppConfig.StoreId;
         }
 
-        _credentialStorage.SaveCredentials(email, password);
+        if (Client.Auth.CurrentSession != null && !string.IsNullOrEmpty(Client.Auth.CurrentSession.AccessToken))
+        {
+            var storedSession = new StoredSessionData
+            {
+                Email = email,
+                AccessToken = Client.Auth.CurrentSession.AccessToken,
+                RefreshToken = Client.Auth.CurrentSession.RefreshToken ?? string.Empty,
+                ExpiresAtUtc = DateTime.UtcNow.AddSeconds(Client.Auth.CurrentSession.ExpiresIn > 0 ? Client.Auth.CurrentSession.ExpiresIn : 3600)
+            };
+            _credentialStorage.SaveCredentials(email, System.Text.Json.JsonSerializer.Serialize(storedSession));
+        }
         return true;
     }
 
@@ -154,9 +164,17 @@ public class SupabaseAuthService : ISupabaseAuthService
             CurrentStoreId = AppConfig.StoreId;
         }
 
-        if (rememberMe)
+        if (rememberMe && session != null && !string.IsNullOrEmpty(session.AccessToken))
         {
-            _credentialStorage.SaveCredentials(email, password);
+            var storedSession = new StoredSessionData
+            {
+                Email = email,
+                AccessToken = session.AccessToken,
+                RefreshToken = session.RefreshToken ?? string.Empty,
+                ExpiresAtUtc = DateTime.UtcNow.AddSeconds(session.ExpiresIn > 0 ? session.ExpiresIn : 3600)
+            };
+            var sessionJson = System.Text.Json.JsonSerializer.Serialize(storedSession);
+            _credentialStorage.SaveCredentials(email, sessionJson);
         }
 
         return true;
@@ -167,18 +185,106 @@ public class SupabaseAuthService : ISupabaseAuthService
         await InitializeAsync();
 
         var stored = _credentialStorage.RetrieveCredentials();
-        if (stored == null) return false;
+        if (stored == null)
+        {
+            Program.Log("SupabaseAuthService: No stored session found.");
+            return false;
+        }
 
         try
         {
-            return await LoginAsync(stored.Value.Email, stored.Value.SessionOrPassword, rememberMe: true);
+            // Parse stored session tokens (NOT plain passwords)
+            if (string.IsNullOrWhiteSpace(stored.Value.SessionOrPassword) || !stored.Value.SessionOrPassword.TrimStart().StartsWith("{"))
+            {
+                Program.Log("SupabaseAuthService: Stored credential is not a valid session token payload. Clearing legacy credential...");
+                _credentialStorage.ClearCredentials();
+                return false;
+            }
+
+            var sessionData = System.Text.Json.JsonSerializer.Deserialize<StoredSessionData>(stored.Value.SessionOrPassword);
+            if (sessionData == null || string.IsNullOrWhiteSpace(sessionData.AccessToken))
+            {
+                Program.Log("SupabaseAuthService: Empty session token in storage. Clearing...");
+                _credentialStorage.ClearCredentials();
+                return false;
+            }
+
+            Program.Log($"SupabaseAuthService: Validating stored session for {sessionData.Email} against Supabase...");
+
+            // Restore tokens into Supabase Gotrue client
+            if (!string.IsNullOrEmpty(sessionData.RefreshToken))
+            {
+                var refreshed = await Client.Auth.SetSession(sessionData.AccessToken, sessionData.RefreshToken, false);
+                if (refreshed?.User == null)
+                {
+                    Program.Log("SupabaseAuthService: SetSession returned null user. Attempting refresh...");
+                    refreshed = await Client.Auth.RefreshSession();
+                }
+
+                if (refreshed?.User == null)
+                {
+                    Program.Log("SupabaseAuthService: Session refresh failed. Requiring login.");
+                    _credentialStorage.ClearCredentials();
+                    return false;
+                }
+            }
+
+            // Verify live user identity from Supabase server
+            var liveUser = Client.Auth.CurrentUser ?? await Client.Auth.GetUser(sessionData.AccessToken);
+            if (liveUser == null)
+            {
+                Program.Log("SupabaseAuthService: Token validation failed against Supabase. Requiring login.");
+                _credentialStorage.ClearCredentials();
+                return false;
+            }
+
+            var userId = Guid.Parse(liveUser.Id!);
+
+            // Verify storekeeper assignment in Supabase database
+            var storeResp = await Client.From<StorekeeperRecord>()
+                .Where(x => x.Id == userId)
+                .Get();
+
+            var record = storeResp.Models.FirstOrDefault();
+            if (record != null && record.StoreId != Guid.Empty)
+            {
+                CurrentStoreId = record.StoreId;
+            }
+            else
+            {
+                CurrentStoreId = AppConfig.StoreId;
+            }
+
+            // If session was refreshed, update stored tokens with fresh expiration
+            if (Client.Auth.CurrentSession != null && !string.IsNullOrEmpty(Client.Auth.CurrentSession.AccessToken))
+            {
+                var updatedSession = new StoredSessionData
+                {
+                    Email = sessionData.Email,
+                    AccessToken = Client.Auth.CurrentSession.AccessToken,
+                    RefreshToken = Client.Auth.CurrentSession.RefreshToken ?? sessionData.RefreshToken,
+                    ExpiresAtUtc = DateTime.UtcNow.AddSeconds(Client.Auth.CurrentSession.ExpiresIn > 0 ? Client.Auth.CurrentSession.ExpiresIn : 3600)
+                };
+                _credentialStorage.SaveCredentials(sessionData.Email, System.Text.Json.JsonSerializer.Serialize(updatedSession));
+            }
+
+            Program.Log($"SupabaseAuthService: Successfully validated Supabase session for user {liveUser.Email} (Store: {CurrentStoreId})");
+            return true;
         }
         catch (Exception ex)
         {
-            Program.Log($"Failed to restore saved session: {ex.Message}");
+            Program.Log($"SupabaseAuthService: Session validation rejected by Supabase: {ex.Message}. Requiring manual login.");
             _credentialStorage.ClearCredentials();
             return false;
         }
+    }
+
+    public class StoredSessionData
+    {
+        public string Email { get; set; } = string.Empty;
+        public string AccessToken { get; set; } = string.Empty;
+        public string RefreshToken { get; set; } = string.Empty;
+        public DateTime ExpiresAtUtc { get; set; }
     }
 
     public async Task LogoutAsync()

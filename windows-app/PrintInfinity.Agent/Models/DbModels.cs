@@ -28,6 +28,9 @@ public class PrinterRecord : BaseModel
     [Column("is_online")]
     public bool IsOnline { get; set; }
 
+    [Column("priority")]
+    public int Priority { get; set; } = 1;
+
     [Column("created_at", ignoreOnInsert: true)]
     public DateTime CreatedAt { get; set; }
 
