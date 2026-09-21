@@ -133,3 +133,5 @@ supabase/volumes/api/
 supabase/volumes/storage/
 supabase/volumes/db/data/
 *.sql.bak
+.vercel
+.env*
