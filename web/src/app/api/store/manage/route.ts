@@ -61,6 +61,33 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+    if (!token) {
+      return NextResponse.json(
+        { error: "Authentication required. Bearer token missing." },
+        { status: 401 }
+      );
+    }
+
+    const supabaseKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+    const supabase = createClient(SUPABASE_URL, supabaseKey, {
+      auth: { persistSession: false },
+    });
+
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabase.auth.getUser(token);
+
+    if (userErr || !user) {
+      return NextResponse.json(
+        { error: "Invalid or expired storekeeper session." },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
     const {
       store_id,
@@ -76,10 +103,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "store_id is required" }, { status: 400 });
     }
 
-    const supabaseKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
-    const supabase = createClient(SUPABASE_URL, supabaseKey, {
-      auth: { persistSession: false },
-    });
+    // Verify caller is registered storekeeper for this store
+    const { data: skRecord, error: skErr } = await supabase
+      .from("storekeepers")
+      .select("store_id")
+      .eq("id", user.id)
+      .eq("store_id", store_id)
+      .single();
+
+    if (skErr || !skRecord) {
+      return NextResponse.json(
+        { error: "Forbidden: You are not authorized to manage this store." },
+        { status: 403 }
+      );
+    }
 
     // 1. Update store details & pricing
     const updatePayload: Record<string, any> = {

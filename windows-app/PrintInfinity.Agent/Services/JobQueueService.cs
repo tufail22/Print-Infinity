@@ -48,7 +48,10 @@ public class JobQueueService : IJobQueueService
 
     public void ReleaseApprovedJob(Guid jobId)
     {
-        _dispatchedApprovedJobIds.Remove(jobId);
+        lock (_dispatchedApprovedJobIds)
+        {
+            _dispatchedApprovedJobIds.Remove(jobId);
+        }
     }
 
     public JobQueueService(ISupabaseAuthService authService)
@@ -76,75 +79,124 @@ public class JobQueueService : IJobQueueService
             }
         }
 
-        // 2. Setup Supabase Realtime subscription
-        try
-        {
-            var channelName = $"realtime:jobs:{storeId}";
-            _realtimeChannel = _authService.Client.Realtime.Channel(channelName);
-
-            var options = new PostgresChangesOptions(
-                schema: "public",
-                table: "print_jobs",
-                eventType: PostgresChangesOptions.ListenType.All
-            );
-
-            _realtimeChannel.Register(options);
-
-            // FIX 2: Apply INSERT events directly from payload; only poll on UPDATE/DELETE.
-            _realtimeChannel.AddPostgresChangeHandler(PostgresChangesOptions.ListenType.All, async (sender, change) =>
+            // 2. Setup Supabase Realtime subscription with state & error monitoring
+            try
             {
-                try
-                {
-                    _realtimeHealthy = true;
+                var channelName = $"realtime:jobs:{storeId}";
+                _realtimeChannel = _authService.Client.Realtime.Channel(channelName);
 
-                    if (change.Event == Supabase.Realtime.Constants.EventType.Insert)
+                // Wire up state changes to maintain accurate _realtimeHealthy status
+                _realtimeChannel.AddStateChangedHandler((sender, state) =>
+                {
+                    Program.Log($"JobQueueService: Realtime socket state changed to: {state}");
+                    if (state == Supabase.Realtime.Constants.ChannelState.Joined)
                     {
-                        // Fast path: extract the new record from the Realtime payload directly.
-                        // Only trigger a full refresh if we can't parse the payload.
-                        bool handled = TryHandleInsertPayload(change);
-                        if (!handled)
+                        _realtimeHealthy = true;
+                    }
+                    else if (state == Supabase.Realtime.Constants.ChannelState.Closed ||
+                             state == Supabase.Realtime.Constants.ChannelState.Errored)
+                    {
+                        _realtimeHealthy = false;
+                    }
+                });
+
+                _realtimeChannel.AddErrorHandler((sender, ex) =>
+                {
+                    Program.Log($"JobQueueService: Realtime socket error: {ex?.Message}");
+                    _realtimeHealthy = false;
+                });
+
+                var options = new PostgresChangesOptions(
+                    schema: "public",
+                    table: "print_jobs",
+                    eventType: PostgresChangesOptions.ListenType.All
+                );
+
+                _realtimeChannel.Register(options);
+
+                // FIX 2: Apply INSERT events directly from payload; only poll on UPDATE/DELETE.
+                _realtimeChannel.AddPostgresChangeHandler(PostgresChangesOptions.ListenType.All, async (sender, change) =>
+                {
+                    try
+                    {
+                        _realtimeHealthy = true;
+
+                        if (change.Event == Supabase.Realtime.Constants.EventType.Insert)
                         {
+                            // Fast path: extract the new record from the Realtime payload directly.
+                            // Only trigger a full refresh if we can't parse the payload.
+                            bool handled = TryHandleInsertPayload(change);
+                            if (!handled)
+                            {
+                                await RefreshPendingJobsAsync();
+                            }
+                        }
+                        else
+                        {
+                            // UPDATE/DELETE: do a targeted refresh to sync state.
                             await RefreshPendingJobsAsync();
                         }
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        // UPDATE/DELETE: do a targeted refresh to sync state.
+                        System.Diagnostics.Debug.WriteLine($"Realtime handler error: {ex.Message}");
+                    }
+                });
+
+                await _realtimeChannel.Subscribe();
+                _realtimeHealthy = true;
+                Program.Log($"JobQueueService: Realtime subscription active for store {storeId}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Realtime subscription error (fallback polling active): {ex.Message}");
+                _realtimeHealthy = false;
+            }
+
+            // 3. Auto-healing fallback timer. Runs every 15s.
+            // When Realtime is healthy, it stays idle (0 DB calls).
+            // When Realtime drops, it actively polls database and attempts reconnection.
+            _fallbackPollingTimer = new Timer(async _ =>
+            {
+                if (_isDisposed) return;
+
+                // Validate channel state
+                if (_realtimeHealthy && _realtimeChannel != null && (_realtimeChannel.IsClosed || _realtimeChannel.IsErrored))
+                {
+                    _realtimeHealthy = false;
+                }
+
+                if (!_realtimeHealthy)
+                {
+                    Program.Log("JobQueueService: Fallback poll active (Realtime disconnected)...");
+                    try
+                    {
                         await RefreshPendingJobsAsync();
                     }
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Realtime handler error: {ex.Message}");
-                }
-            });
+                    catch (Exception pollEx)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Fallback polling error: {pollEx.Message}");
+                    }
 
-            await _realtimeChannel.Subscribe();
-            _realtimeHealthy = true;
-            Program.Log($"JobQueueService: Realtime subscription active for store {storeId}");
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Realtime subscription error (fallback polling active): {ex.Message}");
-            _realtimeHealthy = false;
-        }
+                    // Attempt auto-healing re-subscription
+                    try
+                    {
+                        if (_realtimeChannel != null && (_realtimeChannel.IsClosed || _realtimeChannel.IsErrored))
+                        {
+                            Program.Log("JobQueueService: Attempting Realtime socket re-subscription...");
+                            await _realtimeChannel.Subscribe();
+                        }
+                    }
+                    catch (Exception reSubEx)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Auto-heal subscription notice: {reSubEx.Message}");
+                    }
+                }
+            }, null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
 
-        // 3. FIX 3: Fallback timer at 30s (was 3s). Only fires active polls when Realtime is down.
-        _fallbackPollingTimer = new Timer(async _ =>
-        {
-            if (_isDisposed) return;
-            // Skip poll if Realtime is healthy — it's already handling events.
-            if (_realtimeHealthy) return;
-            try
-            {
-                await RefreshPendingJobsAsync();
-            }
-            catch
-            {
-                // Ignore transient polling exceptions
-            }
-        }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
-    }
+            // 4. Initial sweep for any in-flight 'approved' or interrupted 'printing' jobs
+            _ = Task.Run(RefreshPendingJobsAsync);
+        }
 
     /// FIX 2: Attempt to apply an INSERT Realtime event without a full round-trip.
     /// Returns true if handled; false if the caller should fall back to a full poll.
@@ -223,7 +275,7 @@ public class JobQueueService : IJobQueueService
                 JobRemoved?.Invoke(this, id);
             }
 
-            // Check for jobs that have transitioned to 'approved' in database
+            // Check for jobs that have transitioned to 'approved' or were left in 'printing' (interrupted/crash recovery)
             try
             {
                 var approvedResponse = await _authService.Client.From<PrintJobRecord>()
@@ -231,34 +283,48 @@ public class JobQueueService : IJobQueueService
                     .Where(x => x.Status == "approved")
                     .Get();
 
-                if (approvedResponse?.Models != null)
+                var printingResponse = await _authService.Client.From<PrintJobRecord>()
+                    .Where(x => x.StoreId == _storeId)
+                    .Where(x => x.Status == "printing")
+                    .Get();
+
+                var actionableRecords = (approvedResponse?.Models ?? new List<PrintJobRecord>())
+                    .Concat(printingResponse?.Models ?? new List<PrintJobRecord>())
+                    .GroupBy(r => r.Id)
+                    .Select(g => g.First())
+                    .ToList();
+
+                foreach (var r in actionableRecords)
                 {
-                    foreach (var r in approvedResponse.Models)
+                    bool shouldDispatch = false;
+                    lock (_dispatchedApprovedJobIds)
                     {
-                        if (_dispatchedApprovedJobIds.Add(r.Id))
+                        shouldDispatch = _dispatchedApprovedJobIds.Add(r.Id);
+                    }
+
+                    if (shouldDispatch)
+                    {
+                        var queueItem = new QueueItem
                         {
-                            var queueItem = new QueueItem
-                            {
-                                Id = r.Id,
-                                ColorMode = r.ColorMode,
-                                Copies = r.Copies,
-                                PaperSize = r.PaperSize,
-                                PageCount = r.PageCount > 0 ? r.PageCount : 1,
-                                Duplex = r.Duplex,
-                                Price = CalculateDefaultPrice(r),
-                                PaymentMethod = "upi",
-                                PaymentStatus = "verified",
-                                CreatedAt = r.CreatedAt
-                            };
-                            Program.Log($"JobQueueService: Approved job ready to print! ID={r.Id}, Color={r.ColorMode}");
-                            JobApproved?.Invoke(this, queueItem);
-                        }
+                            Id = r.Id,
+                            ColorMode = r.ColorMode,
+                            Copies = r.Copies,
+                            PaperSize = r.PaperSize,
+                            PageCount = r.PageCount > 0 ? r.PageCount : 1,
+                            Duplex = r.Duplex,
+                            Price = CalculateDefaultPrice(r),
+                            PaymentMethod = "upi",
+                            PaymentStatus = "verified",
+                            CreatedAt = r.CreatedAt
+                        };
+                        Program.Log($"JobQueueService: Job ready to print (Status={r.Status})! ID={r.Id}, Color={r.ColorMode}");
+                        JobApproved?.Invoke(this, queueItem);
                     }
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Approved query notice: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Approved/printing query notice: {ex.Message}");
             }
         }
         finally

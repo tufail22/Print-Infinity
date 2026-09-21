@@ -9,6 +9,34 @@ const SUPABASE_ANON_KEY =
 
 export async function POST(req: NextRequest) {
   try {
+    // 1. Mandatory Storekeeper Authentication Guard
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+    if (!token) {
+      return NextResponse.json(
+        { error: "Authentication required. Bearer token missing." },
+        { status: 401 }
+      );
+    }
+
+    const clientKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+    const supabase = createClient(SUPABASE_URL, clientKey, {
+      auth: { persistSession: false },
+    });
+
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabase.auth.getUser(token);
+
+    if (userErr || !user) {
+      return NextResponse.json(
+        { error: "Invalid or expired storekeeper session." },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
     const { print_job_id, new_status, rejection_reason } = body;
 
@@ -19,11 +47,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const clientKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
-    const supabase = createClient(SUPABASE_URL, clientKey, {
-      auth: { persistSession: false },
-    });
+    // 2. Verify storekeeper ownership of the store matching this print job
+    const { data: storekeeper, error: skErr } = await supabase
+      .from("storekeepers")
+      .select("store_id")
+      .eq("id", user.id)
+      .single();
 
+    if (skErr || !storekeeper) {
+      return NextResponse.json(
+        { error: "Forbidden: Authenticated user is not registered as a storekeeper." },
+        { status: 403 }
+      );
+    }
+
+    const { data: jobRecord, error: jobFetchErr } = await supabase
+      .from("print_jobs")
+      .select("id, store_id, status")
+      .eq("id", print_job_id)
+      .single();
+
+    if (jobFetchErr || !jobRecord) {
+      return NextResponse.json({ error: "Print job not found." }, { status: 404 });
+    }
+
+    if (jobRecord.store_id !== storekeeper.store_id) {
+      return NextResponse.json(
+        { error: "Forbidden: This print job does not belong to your store." },
+        { status: 403 }
+      );
+    }
+
+    // 3. Status transition execution
     if (new_status === "approved") {
       const { data: rpcRes, error: rpcErr } = await supabase.rpc("approve_print_job", {
         p_print_job_id: print_job_id,
