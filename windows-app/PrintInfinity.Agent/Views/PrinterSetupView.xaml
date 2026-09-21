@@ -12,8 +12,9 @@
 
         <!-- Status Notifications -->
         <InfoBar IsOpen="{x:Bind ViewModel.HasNotification, Mode=OneWay}"
-                 Severity="Informational"
-                 Message="{x:Bind ViewModel.NotificationMessage, Mode=OneWay}" />
+                 Severity="{x:Bind ViewModel.NotificationSeverity, Mode=OneWay}"
+                 Message="{x:Bind ViewModel.NotificationMessage, Mode=OneWay}"
+                 CornerRadius="10" />
 
         <!-- Section Header + Action Toolbar -->
         <Grid>
@@ -85,8 +86,8 @@
         <ItemsControl ItemsSource="{x:Bind ViewModel.Printers, Mode=OneWay}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="models:PrinterItem">
-                    <Border CornerRadius="14" Padding="22"
-                            Margin="0,0,0,14"
+                    <Border CornerRadius="14" Padding="20,18"
+                            Margin="0,0,0,12"
                             Background="#FFFFFF"
                             BorderBrush="#E2E8F0"
                             BorderThickness="1">
@@ -94,7 +95,7 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="260"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="210"/>
+                                <ColumnDefinition Width="200"/>
                             </Grid.ColumnDefinitions>
 
                             <!-- Printer Info -->
@@ -120,7 +121,7 @@
                                             Margin="46,0,0,0">
                                     <TextBlock Text="Port:" FontSize="11" Foreground="#64748B"/>
                                     <TextBlock Text="{x:Bind PortName}"
-                                               FontSize="11" Foreground="#334155"/>
+                                               FontSize="11" Foreground="#334155" FontWeight="Medium"/>
                                 </StackPanel>
 
                                 <!-- Status Badge -->
@@ -138,7 +139,7 @@
                             </StackPanel>
 
                             <!-- Configuration -->
-                            <StackPanel Grid.Column="1" Spacing="14"
+                            <StackPanel Grid.Column="1" Spacing="12"
                                         VerticalAlignment="Center" Padding="12,0">
                                 <StackPanel Spacing="4">
                                     <TextBlock Text="Friendly Cloud Name"
@@ -149,7 +150,7 @@
                                              Foreground="#0F172A"
                                              BorderBrush="#CBD5E1"
                                              CornerRadius="8"
-                                             Padding="10,8"/>
+                                             Padding="10,7"/>
                                 </StackPanel>
 
                                 <Grid ColumnSpacing="14">
@@ -167,11 +168,11 @@
                                         <StackPanel Orientation="Horizontal" Spacing="10">
                                             <RadioButton Content="B&amp;W"
                                                          IsChecked="{x:Bind IsBw, Mode=TwoWay}"
-                                                         GroupName="{x:Bind WindowsPrinterName}"
+                                                         GroupName="{x:Bind TypeGroupName}"
                                                          Foreground="#334155"/>
                                             <RadioButton Content="Color"
                                                          IsChecked="{x:Bind IsColor, Mode=TwoWay}"
-                                                         GroupName="{x:Bind WindowsPrinterName}"
+                                                         GroupName="{x:Bind TypeGroupName}"
                                                          Foreground="#334155"/>
                                         </StackPanel>
                                     </StackPanel>
@@ -184,25 +185,28 @@
                                         <StackPanel Orientation="Horizontal" Spacing="10">
                                             <RadioButton Content="USB"
                                                          IsChecked="{x:Bind IsUsb, Mode=TwoWay}"
-                                                         GroupName="{x:Bind PortName}"
+                                                         GroupName="{x:Bind ConnectionGroupName}"
                                                          Foreground="#334155"/>
                                             <RadioButton Content="WiFi"
                                                          IsChecked="{x:Bind IsWifi, Mode=TwoWay}"
-                                                         GroupName="{x:Bind PortName}"
+                                                         GroupName="{x:Bind ConnectionGroupName}"
                                                          Foreground="#334155"/>
                                         </StackPanel>
                                     </StackPanel>
 
                                     <!-- Priority Fallback Order -->
                                     <StackPanel Grid.Column="2" Spacing="5">
-                                        <TextBlock Text="PRIORITY" FontSize="10"
-                                                   Foreground="#64748B"
-                                                   FontWeight="SemiBold"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="PRIORITY" FontSize="10"
+                                                       Foreground="#64748B"
+                                                       FontWeight="SemiBold"/>
+                                            <FontIcon Glyph="&#xE946;" FontSize="10" Foreground="#94A3B8"/>
+                                        </StackPanel>
                                         <NumberBox Value="{x:Bind PriorityValue, Mode=TwoWay}"
                                                    SpinButtonPlacementMode="Inline"
                                                    Minimum="1" Maximum="20" SmallChange="1"
                                                    Width="80"
-                                                   ToolTipService.ToolTip="1 = Primary/Highest priority. If offline, automatically falls back to #2, #3, etc."
+                                                   ToolTipService.ToolTip="1 = Primary/Highest. If offline, automatically falls back to #2, #3..."
                                                    Background="#F8FAFC"
                                                    Foreground="#0F172A"
                                                    BorderBrush="#CBD5E1"
@@ -212,22 +216,24 @@
                             </StackPanel>
 
                             <!-- Save + Delete -->
-                            <StackPanel Grid.Column="2" Spacing="10"
+                            <StackPanel Grid.Column="2" Spacing="8"
                                         VerticalAlignment="Center"
                                         HorizontalAlignment="Right">
                                 <!-- Save -->
                                 <Button HorizontalAlignment="Stretch"
-                                        Height="40" CornerRadius="10"
+                                        Height="38" CornerRadius="8"
                                         Background="#4F46E5"
                                         Click="OnSaveSinglePrinterClick"
                                         DataContext="{x:Bind}">
                                     <Grid>
-                                        <TextBlock Text="Save to Cloud"
-                                                   FontWeight="Bold" FontSize="13"
-                                                   Foreground="White"
-                                                   HorizontalAlignment="Center"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                                            <FontIcon Glyph="&#xE74E;" FontSize="13" Foreground="White"/>
+                                            <TextBlock Text="Save to Cloud"
+                                                       FontWeight="SemiBold" FontSize="12"
+                                                       Foreground="White"/>
+                                        </StackPanel>
                                         <ProgressRing IsActive="{x:Bind IsSaving, Mode=OneWay}"
-                                                      Width="16" Height="16"
+                                                      Width="14" Height="14"
                                                       Foreground="White"
                                                       HorizontalAlignment="Center"/>
                                     </Grid>
@@ -235,7 +241,7 @@
 
                                 <!-- Delete -->
                                 <Button HorizontalAlignment="Stretch"
-                                        Height="36" CornerRadius="10"
+                                        Height="34" CornerRadius="8"
                                         Background="#FEF2F2"
                                         BorderBrush="#FECACA"
                                         BorderThickness="1"
@@ -244,9 +250,9 @@
                                         ToolTipService.ToolTip="Remove printer from list">
                                     <StackPanel Orientation="Horizontal" Spacing="6"
                                                 HorizontalAlignment="Center">
-                                        <FontIcon Glyph="&#xE74D;" FontSize="13"
+                                        <FontIcon Glyph="&#xE74D;" FontSize="12"
                                                   Foreground="#DC2626"/>
-                                        <TextBlock Text="Delete" FontSize="13"
+                                        <TextBlock Text="Delete" FontSize="12"
                                                    Foreground="#DC2626" FontWeight="SemiBold"/>
                                     </StackPanel>
                                 </Button>

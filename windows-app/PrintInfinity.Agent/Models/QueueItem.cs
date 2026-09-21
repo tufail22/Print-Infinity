@@ -34,6 +34,7 @@ public partial class QueueItem : ObservableObject
     private decimal _price;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FormattedDuplex))]
     private bool _duplex;
 
     [ObservableProperty]
@@ -62,11 +63,12 @@ public partial class QueueItem : ObservableObject
     public string FormattedPrice => $"₹{Price:F2}";
     public string FormattedCopies => Copies == 1 ? "1 copy" : $"{Copies} copies";
     public string FormattedPages => PageCount == 1 ? "1 page" : $"{PageCount} pages";
+    public string FormattedDuplex => Duplex ? "Double-sided" : "Single-sided";
     public string FormattedTime => CreatedAt.ToLocalTime().ToString("hh:mm:ss tt");
 
     public string ColorModeBadgeText => string.Equals(ColorMode, "color", StringComparison.OrdinalIgnoreCase)
-        ? "🎨 Full Color"
-        : "⬛ Monochrome B&W";
+        ? "Full Color"
+        : "Monochrome (B&W)";
 
     public string ColorBadgeBackground => string.Equals(ColorMode, "color", StringComparison.OrdinalIgnoreCase)
         ? "#FEF3C7"
@@ -78,8 +80,8 @@ public partial class QueueItem : ObservableObject
 
     public string PaymentBadgeText =>
         string.Equals(PaymentMethod, "cash", StringComparison.OrdinalIgnoreCase)
-            ? (string.Equals(PaymentStatus, "verified", StringComparison.OrdinalIgnoreCase) ? "💵 Cash Verified" : "💵 Cash at Counter")
-            : (string.Equals(PaymentStatus, "verified", StringComparison.OrdinalIgnoreCase) ? "💳 UPI Paid" : "⏳ UPI Pending");
+            ? (string.Equals(PaymentStatus, "verified", StringComparison.OrdinalIgnoreCase) ? "Cash Verified" : "Cash at Counter")
+            : (string.Equals(PaymentStatus, "verified", StringComparison.OrdinalIgnoreCase) ? "UPI Paid" : "UPI Pending");
 
     public string PaymentBadgeBackground =>
         string.Equals(PaymentStatus, "verified", StringComparison.OrdinalIgnoreCase)

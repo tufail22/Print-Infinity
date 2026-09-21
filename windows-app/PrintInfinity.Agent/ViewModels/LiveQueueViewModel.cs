@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml.Controls;
 using PrintInfinity.Agent.Models;
 using PrintInfinity.Agent.Services;
 
@@ -34,6 +36,7 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
 
     public bool HasJobs => JobCount > 0;
     public bool HasNoJobs => JobCount == 0;
+    public bool HasNoAuditLogs => AuditLogs.Count == 0;
     public string QueueBadgeText => JobCount > 0 ? $"({JobCount})" : string.Empty;
 
     [ObservableProperty]
@@ -48,6 +51,31 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
 
     public bool HasNotification => !string.IsNullOrWhiteSpace(NotificationMessage);
 
+    [ObservableProperty]
+    private InfoBarSeverity _notificationSeverity = InfoBarSeverity.Informational;
+
+    private Timer? _notificationDismissTimer;
+
+    public void ShowNotification(string message, InfoBarSeverity severity = InfoBarSeverity.Informational, int autoDismissSeconds = 6)
+    {
+        NotificationSeverity = severity;
+        NotificationMessage = message;
+
+        _notificationDismissTimer?.Dispose();
+        _notificationDismissTimer = null;
+
+        if (severity != InfoBarSeverity.Error && autoDismissSeconds > 0 && !string.IsNullOrWhiteSpace(message))
+        {
+            _notificationDismissTimer = new Timer(_ =>
+            {
+                _dispatcherQueue?.TryEnqueue(() =>
+                {
+                    NotificationMessage = string.Empty;
+                });
+            }, null, TimeSpan.FromSeconds(autoDismissSeconds), Timeout.InfiniteTimeSpan);
+        }
+    }
+
     private readonly EventHandler<QueueItem> _onJobApproved;
     private readonly EventHandler<PrintPipelineEvent> _onPipelineEventOccurred;
     private readonly EventHandler<AuditLogEntry> _onAuditLogGenerated;
@@ -61,6 +89,7 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
         _printPipelineService = printPipelineService;
         _systemTrayService = systemTrayService;
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
+        AuditLogs.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasNoAuditLogs));
 
         _onJobApproved = (s, job) =>
         {
@@ -72,7 +101,7 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
                     PendingJobs.Remove(existing);
                     JobCount = PendingJobs.Count;
                 }
-                NotificationMessage = $"Printing job ({job.Id.ToString()[..8]})...";
+                ShowNotification($"Printing job ({job.Id.ToString()[..8]})...", InfoBarSeverity.Informational);
                 await _printPipelineService.EnqueueJobAsync(job, PromptPrinterSelectionAsync);
             });
         };
@@ -81,7 +110,7 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
         {
             _dispatcherQueue?.TryEnqueue(() =>
             {
-                NotificationMessage = e.Message;
+                ShowNotification(e.Message, e.IsError ? InfoBarSeverity.Error : InfoBarSeverity.Informational);
                 if (e.IsError)
                 {
                     _queueService.ReleaseApprovedJob(e.JobId);
@@ -132,7 +161,7 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
                     $"{job.FormattedPages}, {job.FormattedCopies} ({job.ColorModeBadgeText}) — {job.FormattedPrice}"
                 );
 
-                NotificationMessage = $"New {job.ColorModeBadgeText} job received ({job.FormattedPrice})";
+                ShowNotification($"New {job.ColorModeBadgeText} job received ({job.FormattedPrice})", InfoBarSeverity.Informational, 6);
             }
         });
     }
@@ -156,7 +185,7 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
         if (job == null) return;
 
         job.IsApproving = true;
-        NotificationMessage = $"Queued job ({job.FormattedPrice}) for print pipeline...";
+        ShowNotification($"Queued job ({job.FormattedPrice}) for print pipeline...", InfoBarSeverity.Informational, 5);
 
         PendingJobs.Remove(job);
         JobCount = PendingJobs.Count;
@@ -224,17 +253,18 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
                 Details = $"Reason: {reason}"
             });
 
-            NotificationMessage = $"✕ Job rejected: '{reason}'. Customer notified.";
+            ShowNotification($"Job rejected: '{reason}'. Customer notified.", InfoBarSeverity.Informational, 6);
         }
         else
         {
-            NotificationMessage = "Failed to reject job. Check internet connection.";
+            ShowNotification("Failed to reject job. Check internet connection.", InfoBarSeverity.Error, 8);
             job.IsRejecting = false;
         }
     }
 
     public void Dispose()
     {
+        _notificationDismissTimer?.Dispose();
         _queueService.JobArrived -= OnJobArrived;
         _queueService.JobRemoved -= OnJobRemoved;
         _queueService.JobApproved -= _onJobApproved;

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml.Controls;
 using PrintInfinity.Agent.Models;
 using PrintInfinity.Agent.Services;
 
@@ -49,6 +50,31 @@ public partial class PrinterSetupViewModel : ObservableObject, IDisposable
     private string _notificationMessage = string.Empty;
 
     public bool HasNotification => !string.IsNullOrWhiteSpace(NotificationMessage);
+
+    [ObservableProperty]
+    private InfoBarSeverity _notificationSeverity = InfoBarSeverity.Informational;
+
+    private Timer? _notificationDismissTimer;
+
+    public void ShowNotification(string message, InfoBarSeverity severity = InfoBarSeverity.Informational, int autoDismissSeconds = 6)
+    {
+        NotificationSeverity = severity;
+        NotificationMessage = message;
+
+        _notificationDismissTimer?.Dispose();
+        _notificationDismissTimer = null;
+
+        if (severity != InfoBarSeverity.Error && autoDismissSeconds > 0 && !string.IsNullOrWhiteSpace(message))
+        {
+            _notificationDismissTimer = new Timer(_ =>
+            {
+                _dispatcherQueue?.TryEnqueue(() =>
+                {
+                    NotificationMessage = string.Empty;
+                });
+            }, null, TimeSpan.FromSeconds(autoDismissSeconds), Timeout.InfiniteTimeSpan);
+        }
+    }
 
     public PrinterSetupViewModel(
         ISupabaseAuthService authService,
@@ -114,12 +140,12 @@ public partial class PrinterSetupViewModel : ObservableObject, IDisposable
         var success = await _printerSyncService.SavePrinterMappingAsync(printer, StoreId);
         if (success)
         {
-            NotificationMessage = $"✓ Successfully saved '{printer.DisplayName}' ({printer.Type.ToUpperInvariant()}, {printer.Connection.ToUpperInvariant()}) to Supabase!";
+            ShowNotification($"Successfully saved '{printer.DisplayName}' ({printer.Type.ToUpperInvariant()}, {printer.Connection.ToUpperInvariant()}) to Supabase!", InfoBarSeverity.Success, 6);
             StatusMessage = $"Printer {printer.DisplayName} synchronized with cloud database.";
         }
         else
         {
-            NotificationMessage = $"Failed to save '{printer.DisplayName}' to Supabase. Check network/permissions.";
+            ShowNotification($"Failed to save '{printer.DisplayName}' to Supabase. Check network/permissions.", InfoBarSeverity.Error, 8);
         }
     }
 
@@ -140,12 +166,12 @@ public partial class PrinterSetupViewModel : ObservableObject, IDisposable
                 if (ok) savedCount++;
             }
 
-            NotificationMessage = $"✓ All {savedCount} of {Printers.Count} printer mappings saved to Supabase!";
+            ShowNotification($"All {savedCount} of {Printers.Count} printer mappings saved to Supabase!", InfoBarSeverity.Success, 6);
             StatusMessage = $"Cloud synchronization complete for Store {StoreId}.";
         }
         catch (Exception ex)
         {
-            NotificationMessage = $"Save all failed: {ex.Message}";
+            ShowNotification($"Save all failed: {ex.Message}", InfoBarSeverity.Error, 8);
         }
         finally
         {
@@ -172,7 +198,7 @@ public partial class PrinterSetupViewModel : ObservableObject, IDisposable
             Connection = "usb"
         };
         Printers.Add(item);
-        NotificationMessage = $"Added '{printerName}'. Configure and click Save to Cloud.";
+        ShowNotification($"Added '{printerName}'. Configure and click Save to Cloud.", InfoBarSeverity.Informational, 6);
         StatusMessage = $"{Printers.Count} printer(s) in list.";
     }
 
@@ -251,6 +277,7 @@ public partial class PrinterSetupViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _isDisposed = true;
+        _notificationDismissTimer?.Dispose();
         StopPeriodicQueuePing();
     }
 }

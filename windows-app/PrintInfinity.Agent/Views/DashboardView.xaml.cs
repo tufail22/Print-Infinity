@@ -43,9 +43,41 @@ public sealed partial class DashboardView : UserControl
         PrintersSection.Visibility = tab == "Printers" ? Visibility.Visible : Visibility.Collapsed;
         AuditSection.Visibility    = tab == "Audit"    ? Visibility.Visible : Visibility.Collapsed;
 
-        BtnTabQueue.IsChecked    = tab == "Queue";
-        BtnTabPrinters.IsChecked = tab == "Printers";
-        BtnTabAudit.IsChecked    = tab == "Audit";
+        UpdateTabButton(BtnTabQueue, tab == "Queue");
+        UpdateTabButton(BtnTabPrinters, tab == "Printers");
+        UpdateTabButton(BtnTabAudit, tab == "Audit");
+    }
+
+    private static void UpdateTabButton(Button btn, bool isActive)
+    {
+        if (isActive)
+        {
+            btn.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
+            btn.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 226, 232, 240));
+            btn.BorderThickness = new Thickness(1);
+        }
+        else
+        {
+            btn.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            btn.BorderThickness = new Thickness(0);
+        }
+
+        if (btn.Content is StackPanel sp)
+        {
+            var activeBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 67, 56, 202));
+            var inactiveBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 100, 116, 139));
+
+            foreach (var child in sp.Children)
+            {
+                if (child is FontIcon fi)
+                    fi.Foreground = isActive ? activeBrush : inactiveBrush;
+                else if (child is TextBlock tb)
+                {
+                    tb.Foreground = isActive ? activeBrush : inactiveBrush;
+                    tb.FontWeight = isActive ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Medium;
+                }
+            }
+        }
     }
 
     private void OnTabQueueClick(object sender, RoutedEventArgs e)

@@ -17,7 +17,8 @@
         </Grid.RowDefinitions>
 
         <!-- ===== TOP HEADER NAV BAR ===== -->
-        <Border Grid.Row="0" Padding="20,12"
+        <!-- ===== TOP HEADER NAV BAR ===== -->
+        <Border Grid.Row="0" Padding="20,10"
                 Background="#FFFFFF"
                 BorderBrush="#E2E8F0"
                 BorderThickness="0,0,0,1">
@@ -30,21 +31,21 @@
 
                 <!-- Logo + Store Name -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal"
-                            Spacing="12" VerticalAlignment="Center">
-                    <Border CornerRadius="10" Width="42" Height="42"
-                            BorderBrush="#E0E7FF" BorderThickness="1.5"
+                            Spacing="10" VerticalAlignment="Center">
+                    <Border CornerRadius="10" Width="38" Height="38"
+                            BorderBrush="#E0E7FF" BorderThickness="1"
                             Background="#EEF2FF">
                         <Image Source="ms-appx:///Assets/AppLogo.png"
-                               Width="34" Height="34"
+                               Width="30" Height="30"
                                Stretch="Uniform"/>
                     </Border>
 
                     <StackPanel VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <TextBlock Text="Print Infinity Agent"
-                                       FontSize="16" FontWeight="Bold"
+                                       FontSize="15" FontWeight="SemiBold"
                                        Foreground="#0F172A"/>
-                            <Border CornerRadius="8" Padding="8,2"
+                            <Border CornerRadius="6" Padding="6,2"
                                     Background="#EEF2FF"
                                     BorderBrush="#E0E7FF"
                                     BorderThickness="1">
@@ -58,48 +59,77 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- Tab Navigation (ToggleButtons) -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal"
-                            HorizontalAlignment="Center" Spacing="6"
-                            VerticalAlignment="Center">
+                <!-- Modern Segmented Pill Tab Navigation -->
+                <Border Grid.Column="1" HorizontalAlignment="Center"
+                        Background="#F1F5F9" CornerRadius="12" Padding="4">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <!-- Tab 1: Queue -->
+                        <Button x:Name="BtnTabQueue"
+                                Click="OnTabQueueClick"
+                                Background="#FFFFFF"
+                                BorderBrush="#E2E8F0"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="14,6">
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE749;" FontSize="13" Foreground="#4338CA"/>
+                                <TextBlock Text="Live Print Queue"
+                                           FontSize="12" FontWeight="SemiBold"
+                                           Foreground="#4338CA"/>
+                                <Border Visibility="{x:Bind QueueVm.HasJobs, Mode=OneWay}"
+                                        CornerRadius="8" Padding="6,1"
+                                        Background="#4F46E5" Margin="2,0,0,0">
+                                    <TextBlock Text="{x:Bind QueueVm.JobCount, Mode=OneWay}"
+                                               FontSize="10" FontWeight="Bold"
+                                               Foreground="White"/>
+                                </Border>
+                            </StackPanel>
+                        </Button>
 
-                    <ToggleButton x:Name="BtnTabQueue"
-                                  Content="⚡  Live Print Queue"
-                                  IsChecked="True"
-                                  Click="OnTabQueueClick"
-                                  Padding="16,8"
-                                  CornerRadius="10"
-                                  FontSize="13" FontWeight="SemiBold"/>
+                        <!-- Tab 2: Hardware Printers -->
+                        <Button x:Name="BtnTabPrinters"
+                                Click="OnTabPrintersClick"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                CornerRadius="8"
+                                Padding="14,6">
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xEBD2;" FontSize="13" Foreground="#64748B"/>
+                                <TextBlock Text="Hardware Printers"
+                                           FontSize="12" FontWeight="Medium"
+                                           Foreground="#64748B"/>
+                            </StackPanel>
+                        </Button>
 
-                    <ToggleButton x:Name="BtnTabPrinters"
-                                  Content="🖨  Hardware Printers"
-                                  IsChecked="False"
-                                  Click="OnTabPrintersClick"
-                                  Padding="16,8"
-                                  CornerRadius="10"
-                                  FontSize="13" FontWeight="SemiBold"/>
-
-                    <ToggleButton x:Name="BtnTabAudit"
-                                  Content="📋  Audit Log"
-                                  IsChecked="False"
-                                  Click="OnTabAuditClick"
-                                  Padding="16,8"
-                                  CornerRadius="10"
-                                  FontSize="13" FontWeight="SemiBold"/>
-                </StackPanel>
+                        <!-- Tab 3: Audit Log -->
+                        <Button x:Name="BtnTabAudit"
+                                Click="OnTabAuditClick"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                CornerRadius="8"
+                                Padding="14,6">
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE9D9;" FontSize="13" Foreground="#64748B"/>
+                                <TextBlock Text="Audit Log"
+                                           FontSize="12" FontWeight="Medium"
+                                           Foreground="#64748B"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Border>
 
                 <!-- Right: Status + Controls -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal"
                             Spacing="8" VerticalAlignment="Center">
                     <!-- Realtime Pulse -->
-                    <Border CornerRadius="8" Padding="10,6"
+                    <Border CornerRadius="8" Padding="10,5"
                             Background="#ECFDF5"
                             BorderBrush="#A7F3D0"
                             BorderThickness="1">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <Ellipse Width="7" Height="7" Fill="#10B981"/>
                             <TextBlock Text="Realtime Active"
-                                       FontSize="11" Foreground="#059669"
+                                       FontSize="11" Foreground="#047857"
                                        FontWeight="SemiBold"/>
                         </StackPanel>
                     </Border>
@@ -111,7 +141,7 @@
                             BorderBrush="#CBD5E1"
                             BorderThickness="1"
                             CornerRadius="8"
-                            Padding="10,7">
+                            Padding="10,6">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xE740;" FontSize="13" Foreground="#475569"/>
                             <TextBlock Text="Tray" FontSize="12" Foreground="#475569"/>
@@ -125,7 +155,7 @@
                             BorderBrush="#FECACA"
                             BorderThickness="1"
                             CornerRadius="8"
-                            Padding="10,7">
+                            Padding="10,6">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <FontIcon Glyph="&#xF3B1;" FontSize="13" Foreground="#DC2626"/>
                             <TextBlock Text="Sign Out" FontSize="12" Foreground="#DC2626" FontWeight="SemiBold"/>
@@ -139,14 +169,15 @@
         <Grid Grid.Row="1">
 
             <!-- TAB 1: LIVE PRINT QUEUE -->
-            <ScrollViewer x:Name="QueueSection" Padding="28,24"
+            <ScrollViewer x:Name="QueueSection" Padding="28,20"
                           Visibility="Visible">
-                <StackPanel Spacing="20" MaxWidth="980"
+                <StackPanel Spacing="16" MaxWidth="980"
                             HorizontalAlignment="Stretch">
 
                     <InfoBar IsOpen="{x:Bind QueueVm.HasNotification, Mode=OneWay}"
-                             Severity="Informational"
-                             Message="{x:Bind QueueVm.NotificationMessage, Mode=OneWay}" />
+                             Severity="{x:Bind QueueVm.NotificationSeverity, Mode=OneWay}"
+                             Message="{x:Bind QueueVm.NotificationMessage, Mode=OneWay}"
+                             CornerRadius="10" />
 
                     <!-- Header -->
                     <Grid>
@@ -265,14 +296,14 @@
                                         <!-- Print Specs -->
                                         <StackPanel Grid.Column="1" Spacing="10"
                                                     VerticalAlignment="Center"
-                                                    Padding="20,0">
-                                            <StackPanel Orientation="Horizontal" Spacing="28">
+                                                    Padding="16,0">
+                                            <StackPanel Orientation="Horizontal" Spacing="22">
                                                 <StackPanel Spacing="3">
                                                     <TextBlock Text="PAGES" FontSize="10"
                                                                Foreground="#64748B"
                                                                FontWeight="SemiBold"/>
                                                     <TextBlock Text="{x:Bind FormattedPages}"
-                                                               FontSize="16" FontWeight="Bold"
+                                                               FontSize="15" FontWeight="Bold"
                                                                Foreground="#0F172A"/>
                                                 </StackPanel>
                                                 <StackPanel Spacing="3">
@@ -280,7 +311,7 @@
                                                                Foreground="#64748B"
                                                                FontWeight="SemiBold"/>
                                                     <TextBlock Text="{x:Bind FormattedCopies}"
-                                                               FontSize="16" FontWeight="Bold"
+                                                               FontSize="15" FontWeight="Bold"
                                                                Foreground="#0F172A"/>
                                                 </StackPanel>
                                                 <StackPanel Spacing="3">
@@ -288,14 +319,22 @@
                                                                Foreground="#64748B"
                                                                FontWeight="SemiBold"/>
                                                     <TextBlock Text="{x:Bind PaperSize}"
-                                                               FontSize="16" FontWeight="Bold"
+                                                               FontSize="15" FontWeight="Bold"
+                                                               Foreground="#0F172A"/>
+                                                </StackPanel>
+                                                <StackPanel Spacing="3">
+                                                    <TextBlock Text="SIDES" FontSize="10"
+                                                               Foreground="#64748B"
+                                                               FontWeight="SemiBold"/>
+                                                    <TextBlock Text="{x:Bind FormattedDuplex, Mode=OneWay}"
+                                                               FontSize="15" FontWeight="Bold"
                                                                Foreground="#0F172A"/>
                                                 </StackPanel>
                                             </StackPanel>
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <FontIcon Glyph="&#xE72E;" FontSize="11"
                                                           Foreground="#059669"/>
-                                                <TextBlock Text="Privacy Guard: content preview omitted"
+                                                <TextBlock Text="Privacy Guard: content preview omitted (zero-disk streaming)"
                                                            FontSize="11" Foreground="#059669"/>
                                             </StackPanel>
                                         </StackPanel>
@@ -375,6 +414,38 @@
                                    Foreground="#64748B" FontSize="13"
                                    Margin="0,3,0,0"/>
                     </StackPanel>
+
+                    <!-- Table Column Header -->
+                    <Border CornerRadius="8" Padding="16,10"
+                            Background="#F1F5F9"
+                            BorderBrush="#E2E8F0"
+                            BorderThickness="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="190"/>
+                                <ColumnDefinition Width="120"/>
+                                <ColumnDefinition Width="160"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="TIMESTAMP" FontSize="11" FontWeight="SemiBold" Foreground="#64748B"/>
+                            <TextBlock Grid.Column="1" Text="STATUS" FontSize="11" FontWeight="SemiBold" Foreground="#64748B"/>
+                            <TextBlock Grid.Column="2" Text="PAGES &amp; COPIES" FontSize="11" FontWeight="SemiBold" Foreground="#64748B"/>
+                            <TextBlock Grid.Column="3" Text="DETAILS &amp; NOTES" FontSize="11" FontWeight="SemiBold" Foreground="#64748B"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Empty Audit State -->
+                    <Border Visibility="{x:Bind QueueVm.HasNoAuditLogs, Mode=OneWay}"
+                            CornerRadius="14" Padding="36"
+                            Background="#FFFFFF"
+                            BorderBrush="#E2E8F0"
+                            BorderThickness="1">
+                        <StackPanel HorizontalAlignment="Center" Spacing="8">
+                            <FontIcon Glyph="&#xE9D9;" FontSize="24" Foreground="#94A3B8" HorizontalAlignment="Center"/>
+                            <TextBlock Text="No audit records yet" FontSize="14" FontWeight="SemiBold" Foreground="#64748B" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Approved, completed, and rejected print jobs will appear here." FontSize="12" Foreground="#94A3B8" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
 
                     <!-- Audit Log: FIX 12 - ListView virtualizes items -->
                     <ListView ItemsSource="{x:Bind QueueVm.AuditLogs, Mode=OneWay}"

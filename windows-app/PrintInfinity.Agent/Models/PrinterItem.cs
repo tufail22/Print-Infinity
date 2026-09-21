@@ -98,4 +98,7 @@ public partial class PrinterItem : ObservableObject
 
     public string StatusBadgeColor => IsOnline ? "#10B981" : "#EF4444";
     public string StatusBadgeIcon => IsOnline ? "\uE73E" : "\uE711"; // Checkmark vs Warning/Error in Segoe Fluent Icons
+
+    public string TypeGroupName => $"type_{Id?.ToString("N") ?? WindowsPrinterName.GetHashCode().ToString("X")}";
+    public string ConnectionGroupName => $"conn_{Id?.ToString("N") ?? PortName.GetHashCode().ToString("X")}";
 }
