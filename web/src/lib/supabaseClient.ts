@@ -1,12 +1,27 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { getOrCreateCustomerToken } from "./tokenManager";
 
-const supabaseUrl =
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://ynfjuqqkrqgimttpgumx.supabase.co";
-const supabaseAnonKey =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-  "sb_publishable_9oCehcE94-agTcP3DPz9dw_kKe_OCYd";
+function getValidSupabaseUrl(): string {
+  const envUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  if (envUrl && (envUrl.startsWith("http://") || envUrl.startsWith("https://"))) {
+    return envUrl;
+  }
+  return "https://ynfjuqqkrqgimttpgumx.supabase.co";
+}
+
+function getValidSupabaseAnonKey(): string {
+  const envKey = (
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+  )?.trim();
+  if (envKey && envKey.length > 20 && !envKey.includes("[SENSITIVE]")) {
+    return envKey;
+  }
+  return "sb_publishable_9oCehcE94-agTcP3DPz9dw_kKe_OCYd";
+}
+
+const supabaseUrl = getValidSupabaseUrl();
+const supabaseAnonKey = getValidSupabaseAnonKey();
 
 // Standard client
 export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey);
