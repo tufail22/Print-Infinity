@@ -24,22 +24,38 @@ export async function POST(req: NextRequest) {
   try {
     const { keyId: RAZORPAY_KEY_ID, keySecret: RAZORPAY_KEY_SECRET } = getRazorpayCredentials();
     const body = await req.json();
-    const { print_job_id, amount, customer_token } = body;
+    const {
+      print_job_id,
+      amount,
+      customer_token,
+      currency = "INR",
+      receipt,
+      notes = {},
+    } = body;
 
-    if (!print_job_id || amount === undefined || amount === null) {
+    if (!print_job_id || (amount === undefined && body.amount_in_paise === undefined)) {
       return NextResponse.json(
         { error: "Missing required fields: print_job_id and amount" },
         { status: 400 }
       );
     }
 
-    // Determine paise: If amount < 100, treat as rupees and convert to paise; otherwise treat as paise
-    let amountInPaise = Math.round(Number(amount));
-    if (amountInPaise < 100) {
-      amountInPaise = Math.round(Number(amount) * 100);
+    // Determine paise: amount is in Rupees (e.g. ₹5.00, ₹120.00). Razorpay orders require paise (integer).
+    let amountInPaise: number;
+    if (body.amount_in_paise !== undefined && body.amount_in_paise !== null) {
+      amountInPaise = Math.round(Number(body.amount_in_paise));
+    } else {
+      const numericAmount = Number(amount);
+      if (isNaN(numericAmount) || numericAmount < 1.0) {
+        return NextResponse.json(
+          { error: "Minimum order amount must be at least ₹1.00 (100 paise)" },
+          { status: 400 }
+        );
+      }
+      amountInPaise = Math.round(numericAmount * 100);
     }
 
-    if (amountInPaise < 100) {
+    if (isNaN(amountInPaise) || amountInPaise < 100) {
       return NextResponse.json(
         { error: "Minimum order amount must be at least 100 paise (₹1.00)" },
         { status: 400 }
@@ -71,13 +87,15 @@ export async function POST(req: NextRequest) {
 
     // Create order via Razorpay SDK with 6s timeout
     let order;
+    const orderReceipt = receipt || `pj_${print_job_id.slice(0, 30)}`;
     try {
       order = await withTimeout(
         razorpay.orders.create({
           amount: amountInPaise,
-          currency: "INR",
-          receipt: `pj_${print_job_id.slice(0, 30)}`,
+          currency: (currency || "INR").toUpperCase(),
+          receipt: orderReceipt,
           notes: {
+            ...notes,
             print_job_id: print_job_id,
             customer_token: customer_token || "",
           },
@@ -94,8 +112,8 @@ export async function POST(req: NextRequest) {
         order = {
           id: `order_test_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
           amount: amountInPaise,
-          currency: "INR",
-          receipt: `pj_${print_job_id.slice(0, 30)}`,
+          currency: (currency || "INR").toUpperCase(),
+          receipt: orderReceipt,
         };
       } else {
         if (statusCode === 401 || rzpErr.message?.includes("Authentication")) {

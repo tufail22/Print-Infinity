@@ -177,7 +177,6 @@ Storekeepers can manage store details without writing SQL:
    - **Framework Preset**: `Next.js`
    - **Root Directory**: Select `web` (or leave as root if using the included `vercel.json`).
 5. Open the **Environment Variables** section and copy the variables from `web/.env.example`:
-   - `NEXT_PUBLIC_SUPABASE_PROJECT_ID`
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY` *(Mark as Server-only!)*

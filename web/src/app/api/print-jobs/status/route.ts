@@ -132,3 +132,45 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const jobId = searchParams.get("job_id");
+    const customerToken = searchParams.get("customer_token");
+
+    if (!jobId || !customerToken) {
+      return NextResponse.json(
+        { error: "job_id and customer_token parameters are required" },
+        { status: 400 }
+      );
+    }
+
+    const clientKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+    const supabase = createClient(SUPABASE_URL, clientKey, {
+      auth: { persistSession: false },
+    });
+
+    const { data: job, error } = await supabase
+      .from("print_jobs")
+      .select("*")
+      .eq("id", jobId)
+      .eq("customer_token", customerToken)
+      .single();
+
+    if (error || !job) {
+      return NextResponse.json(
+        { error: "Print job not found or invalid token." },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ success: true, job });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+

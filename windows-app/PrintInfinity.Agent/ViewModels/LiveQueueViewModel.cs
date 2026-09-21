@@ -98,11 +98,18 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
                 var existing = PendingJobs.FirstOrDefault(j => j.Id == job.Id);
                 if (existing != null)
                 {
-                    PendingJobs.Remove(existing);
-                    JobCount = PendingJobs.Count;
+                    existing.IsApproving = true;
                 }
                 ShowNotification($"Printing job ({job.Id.ToString()[..8]})...", InfoBarSeverity.Informational);
-                await _printPipelineService.EnqueueJobAsync(job, PromptPrinterSelectionAsync);
+                try
+                {
+                    await _printPipelineService.EnqueueJobAsync(job, PromptPrinterSelectionAsync);
+                }
+                catch (Exception ex)
+                {
+                    if (existing != null) existing.IsApproving = false;
+                    ShowNotification($"Pipeline error for job ({job.Id.ToString()[..8]}): {ex.Message}", InfoBarSeverity.Error, 8);
+                }
             });
         };
 
@@ -111,9 +118,24 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
             _dispatcherQueue?.TryEnqueue(() =>
             {
                 ShowNotification(e.Message, e.IsError ? InfoBarSeverity.Error : InfoBarSeverity.Informational);
+                var existing = PendingJobs.FirstOrDefault(j => j.Id == e.JobId);
                 if (e.IsError)
                 {
                     _queueService.ReleaseApprovedJob(e.JobId);
+                    if (existing != null)
+                    {
+                        existing.IsApproving = false;
+                    }
+                }
+                else if (e.Message.Contains("completed", StringComparison.OrdinalIgnoreCase) ||
+                         e.Message.Contains("Printed successfully", StringComparison.OrdinalIgnoreCase) ||
+                         e.Message.Contains("spooled", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (existing != null)
+                    {
+                        PendingJobs.Remove(existing);
+                        JobCount = PendingJobs.Count;
+                    }
                 }
             });
         };
@@ -182,15 +204,20 @@ public partial class LiveQueueViewModel : ObservableObject, IDisposable
     [RelayCommand]
     public async Task ApproveJobAsync(QueueItem? job)
     {
-        if (job == null) return;
+        if (job == null || job.IsApproving) return;
 
         job.IsApproving = true;
-        ShowNotification($"Queued job ({job.FormattedPrice}) for print pipeline...", InfoBarSeverity.Informational, 5);
+        ShowNotification($"Queuing job ({job.FormattedPrice}) for print pipeline...", InfoBarSeverity.Informational, 5);
 
-        PendingJobs.Remove(job);
-        JobCount = PendingJobs.Count;
-
-        await _printPipelineService.EnqueueJobAsync(job, PromptPrinterSelectionAsync);
+        try
+        {
+            await _printPipelineService.EnqueueJobAsync(job, PromptPrinterSelectionAsync);
+        }
+        catch (Exception ex)
+        {
+            job.IsApproving = false;
+            ShowNotification($"Failed to dispatch job: {ex.Message}", InfoBarSeverity.Error, 8);
+        }
     }
 
     public async Task<PrinterItem?> PromptPrinterSelectionAsync(List<PrinterItem> candidates)

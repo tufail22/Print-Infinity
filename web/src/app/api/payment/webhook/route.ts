@@ -4,18 +4,25 @@ import crypto from "crypto";
 
 const SUPABASE_URL =
   process.env.NEXT_PUBLIC_SUPABASE_URL || "https://ynfjuqqkrqgimttpgumx.supabase.co";
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-const RAZORPAY_WEBHOOK_SECRET = (
-  process.env.RAZORPAY_WEBHOOK_SECRET ||
-  process.env.RAZORPAY_KEY_SECRET ||
-  ""
-).trim();
 
 export async function POST(req: NextRequest) {
   try {
+    const RAZORPAY_WEBHOOK_SECRET = (process.env.RAZORPAY_WEBHOOK_SECRET || "").trim();
     if (!RAZORPAY_WEBHOOK_SECRET) {
-      console.error("[webhook] Webhook secret not configured on server");
-      return NextResponse.json({ error: "Webhook secret not configured on server" }, { status: 500 });
+      console.error("[webhook] RAZORPAY_WEBHOOK_SECRET not configured on server");
+      return NextResponse.json(
+        { error: "Webhook secret not configured on server. Set RAZORPAY_WEBHOOK_SECRET." },
+        { status: 500 }
+      );
+    }
+
+    const SUPABASE_SERVICE_ROLE_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+    if (!SUPABASE_SERVICE_ROLE_KEY) {
+      console.error("[webhook] SUPABASE_SERVICE_ROLE_KEY not configured on server");
+      return NextResponse.json(
+        { error: "Database service key not configured on server. Set SUPABASE_SERVICE_ROLE_KEY." },
+        { status: 500 }
+      );
     }
 
     const rawBody = await req.text();

@@ -52,6 +52,9 @@ export const PrintPreview: React.FC<PrintPreviewProps> = ({
       duplex: settings.duplex,
       quality: settings.quality,
       pagesPerSheet: settings.pagesPerSheet,
+      pageRangeType: settings.pageRangeType,
+      customPageRange: settings.customPageRange,
+      photoSize: settings.photoSize,
     },
     pricingConfig
   );

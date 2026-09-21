@@ -63,7 +63,9 @@ public class WindowsPrintEngine : IPrintEngine
 
         var pdfDoc = await PdfDocument.LoadFromStreamAsync(randomAccessStream);
         var totalPages = (int)pdfDoc.PageCount;
-        int currentPageIndex = 0;
+        var (_, pageRangeSpec) = ParsePaperSizeAndRange(job.PaperSize);
+        var pagesToPrint = ParsePageIndices(totalPages, pageRangeSpec, job.PageCount);
+        int currentPrintIndex = 0;
 
         var isColor = string.Equals(job.ColorMode, "color", StringComparison.OrdinalIgnoreCase);
 
@@ -80,9 +82,10 @@ public class WindowsPrintEngine : IPrintEngine
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (currentPageIndex < totalPages)
+                if (currentPrintIndex < pagesToPrint.Count)
                 {
-                    using var page = pdfDoc.GetPage((uint)currentPageIndex);
+                    var pageIndex = pagesToPrint[currentPrintIndex];
+                    using var page = pdfDoc.GetPage((uint)pageIndex);
                     using var pageStream = new InMemoryRandomAccessStream();
 
                     // Render page into memory stream at high resolution
@@ -94,8 +97,8 @@ public class WindowsPrintEngine : IPrintEngine
                     // Fit image into printable area preserving aspect ratio and strictly enforcing color mode
                     DrawImagePreservingAspect(e.Graphics, pageImage, e.MarginBounds, isColor);
 
-                    currentPageIndex++;
-                    e.HasMorePages = currentPageIndex < totalPages;
+                    currentPrintIndex++;
+                    e.HasMorePages = currentPrintIndex < pagesToPrint.Count;
                 }
                 else
                 {
@@ -105,6 +108,107 @@ public class WindowsPrintEngine : IPrintEngine
 
             printDoc.Print();
         }, cancellationToken);
+    }
+
+    private static (string CleanPaperSize, string? PageRangeSpec) ParsePaperSizeAndRange(string? rawPaperSize)
+    {
+        if (string.IsNullOrWhiteSpace(rawPaperSize))
+            return ("A4", null);
+
+        var idx = rawPaperSize.IndexOf("|pages:", StringComparison.OrdinalIgnoreCase);
+        if (idx >= 0)
+        {
+            var clean = rawPaperSize[..idx].Trim();
+            var spec = rawPaperSize[(idx + 7)..].Trim();
+            return (string.IsNullOrEmpty(clean) ? "A4" : clean, string.IsNullOrEmpty(spec) ? null : spec);
+        }
+
+        return (rawPaperSize.Trim(), null);
+    }
+
+    private static System.Collections.Generic.List<int> ParsePageIndices(int totalPages, string? pagesSpec, int maxPaidCount)
+    {
+        var result = new System.Collections.Generic.List<int>();
+        if (totalPages <= 0) return result;
+
+        if (string.IsNullOrWhiteSpace(pagesSpec) || string.Equals(pagesSpec, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            var limit = maxPaidCount > 0 ? Math.Min(totalPages, maxPaidCount) : totalPages;
+            for (int i = 0; i < limit; i++)
+            {
+                result.Add(i);
+            }
+            return result;
+        }
+
+        if (string.Equals(pagesSpec, "odd", StringComparison.OrdinalIgnoreCase))
+        {
+            for (int i = 0; i < totalPages; i++)
+            {
+                if ((i + 1) % 2 != 0)
+                {
+                    result.Add(i);
+                }
+            }
+        }
+        else if (string.Equals(pagesSpec, "even", StringComparison.OrdinalIgnoreCase))
+        {
+            for (int i = 0; i < totalPages; i++)
+            {
+                if ((i + 1) % 2 == 0)
+                {
+                    result.Add(i);
+                }
+            }
+        }
+        else
+        {
+            try
+            {
+                var parts = pagesSpec.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                var set = new System.Collections.Generic.HashSet<int>();
+                foreach (var part in parts)
+                {
+                    if (part.Contains('-'))
+                    {
+                        var dash = part.Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                        if (dash.Length == 2 && int.TryParse(dash[0], out int start) && int.TryParse(dash[1], out int end))
+                        {
+                            var s = Math.Max(1, Math.Min(start, end));
+                            var e = Math.Min(totalPages, Math.Max(start, end));
+                            for (int p = s; p <= e; p++)
+                            {
+                                set.Add(p - 1);
+                            }
+                        }
+                    }
+                    else if (int.TryParse(part, out int pageNum))
+                    {
+                        if (pageNum >= 1 && pageNum <= totalPages)
+                        {
+                            set.Add(pageNum - 1);
+                        }
+                    }
+                }
+                result = System.Linq.Enumerable.ToList(System.Linq.Enumerable.OrderBy(set, x => x));
+            }
+            catch
+            {
+                for (int i = 0; i < totalPages; i++) result.Add(i);
+            }
+        }
+
+        if (result.Count == 0)
+        {
+            for (int i = 0; i < totalPages; i++) result.Add(i);
+        }
+
+        if (maxPaidCount > 0 && result.Count > maxPaidCount)
+        {
+            result = System.Linq.Enumerable.ToList(System.Linq.Enumerable.Take(result, maxPaidCount));
+        }
+
+        return result;
     }
 
     private static async Task PrintImageFromMemoryAsync(
@@ -158,13 +262,13 @@ public class WindowsPrintEngine : IPrintEngine
         }
 
         // Paper Size Mapping (A4 default, Letter, A3, photo sizes)
-        var targetSize = job.PaperSize ?? "A4";
+        var (cleanPaperSize, _) = ParsePaperSizeAndRange(job.PaperSize);
         foreach (PaperSize size in printDoc.PrinterSettings.PaperSizes)
         {
-            if (string.Equals(size.PaperName, targetSize, StringComparison.OrdinalIgnoreCase) ||
-                (targetSize.Equals("A4", StringComparison.OrdinalIgnoreCase) && size.Kind == PaperKind.A4) ||
-                (targetSize.Equals("Letter", StringComparison.OrdinalIgnoreCase) && size.Kind == PaperKind.Letter) ||
-                (targetSize.Equals("A3", StringComparison.OrdinalIgnoreCase) && size.Kind == PaperKind.A3))
+            if (string.Equals(size.PaperName, cleanPaperSize, StringComparison.OrdinalIgnoreCase) ||
+                (cleanPaperSize.Equals("A4", StringComparison.OrdinalIgnoreCase) && size.Kind == PaperKind.A4) ||
+                (cleanPaperSize.Equals("Letter", StringComparison.OrdinalIgnoreCase) && size.Kind == PaperKind.Letter) ||
+                (cleanPaperSize.Equals("A3", StringComparison.OrdinalIgnoreCase) && size.Kind == PaperKind.A3))
             {
                 printDoc.DefaultPageSettings.PaperSize = size;
                 break;

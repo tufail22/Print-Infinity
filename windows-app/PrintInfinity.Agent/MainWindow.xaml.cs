@@ -33,11 +33,11 @@ public sealed partial class MainWindow : Window
         this.InitializeComponent();
 
         // ── Window Title & Size ────────────────────────────────────────────
-        this.Title = "Print Infinity Agent";
+        this.Title = "Print Infinity Agent v1.1.0";
 
         if (this.AppWindow != null)
         {
-            this.AppWindow.Title = "Print Infinity Agent";
+            this.AppWindow.Title = "Print Infinity Agent v1.1.0";
             this.AppWindow.Resize(new Windows.Graphics.SizeInt32(1100, 740));
             SetWindowIcon();
         }

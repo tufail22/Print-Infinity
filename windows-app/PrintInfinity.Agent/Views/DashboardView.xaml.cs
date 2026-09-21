@@ -108,6 +108,7 @@ public sealed partial class DashboardView : UserControl
     {
         if (sender is FrameworkElement { DataContext: QueueItem job })
         {
+            if (job.IsApproving) return;
             await QueueVm.ApproveJobAsync(job);
         }
     }

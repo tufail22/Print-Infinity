@@ -290,7 +290,7 @@
                                                 </Border>
                                             </StackPanel>
                                             <TextBlock Text="{x:Bind FormattedTime}"
-                                                       FontSize="11" Foreground="#94A3B8"/>
+                                                       FontSize="11" Foreground="#64748B"/>
                                         </StackPanel>
 
                                         <!-- Print Specs -->
@@ -441,9 +441,9 @@
                             BorderBrush="#E2E8F0"
                             BorderThickness="1">
                         <StackPanel HorizontalAlignment="Center" Spacing="8">
-                            <FontIcon Glyph="&#xE9D9;" FontSize="24" Foreground="#94A3B8" HorizontalAlignment="Center"/>
+                            <FontIcon Glyph="&#xE9D9;" FontSize="24" Foreground="#64748B" HorizontalAlignment="Center"/>
                             <TextBlock Text="No audit records yet" FontSize="14" FontWeight="SemiBold" Foreground="#64748B" HorizontalAlignment="Center"/>
-                            <TextBlock Text="Approved, completed, and rejected print jobs will appear here." FontSize="12" Foreground="#94A3B8" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Approved, completed, and rejected print jobs will appear here." FontSize="12" Foreground="#64748B" HorizontalAlignment="Center"/>
                         </StackPanel>
                     </Border>
 

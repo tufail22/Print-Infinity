@@ -51,6 +51,52 @@ export function getPricingConfigForStore(store?: { bw_price_per_page?: number | 
   };
 }
 
+export function getSelectedPageCount(
+  totalPages: number,
+  pageRangeType: "all" | "odd" | "even" | "custom" = "all",
+  customPageRange?: string
+): number {
+  if (totalPages <= 0) return 1;
+  if (pageRangeType === "odd") {
+    return Math.ceil(totalPages / 2);
+  }
+  if (pageRangeType === "even") {
+    return Math.max(1, Math.floor(totalPages / 2));
+  }
+  if (pageRangeType === "custom" && customPageRange?.trim()) {
+    try {
+      const selected = new Set<number>();
+      const parts = customPageRange.split(",");
+      for (const part of parts) {
+        const trimmed = part.trim();
+        if (trimmed.includes("-")) {
+          const [startStr, endStr] = trimmed.split("-");
+          const start = parseInt(startStr, 10);
+          const end = parseInt(endStr, 10);
+          if (!isNaN(start) && !isNaN(end)) {
+            const low = Math.max(1, Math.min(start, end));
+            const high = Math.min(totalPages, Math.max(start, end));
+            for (let i = low; i <= high; i++) {
+              selected.add(i);
+            }
+          }
+        } else {
+          const pageNum = parseInt(trimmed, 10);
+          if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
+            selected.add(pageNum);
+          }
+        }
+      }
+      if (selected.size > 0) {
+        return selected.size;
+      }
+    } catch {
+      // fallback to totalPages on malformed range
+    }
+  }
+  return totalPages;
+}
+
 export interface PriceCalculationParams {
   totalPages: number;
   copies: number;
@@ -59,6 +105,9 @@ export interface PriceCalculationParams {
   duplex: boolean;
   quality?: "eco" | "standard" | "high" | "best";
   pagesPerSheet?: number;
+  pageRangeType?: "all" | "odd" | "even" | "custom";
+  customPageRange?: string;
+  photoSize?: string;
 }
 
 export interface PriceBreakdown {
@@ -84,16 +133,23 @@ export function calculateEstimatedPrice(
     duplex,
     quality = "standard",
     pagesPerSheet = 1,
+    pageRangeType = "all",
+    customPageRange,
+    photoSize,
   } = params;
 
   const baseRate =
     colorMode === "color" ? config.rates.colorPerPage : config.rates.bwPerPage;
 
+  const selectedPages = getSelectedPageCount(totalPages, pageRangeType, customPageRange);
+
   // Pages compressed by n-up printing
-  const sheetsNeeded = Math.ceil(Math.max(1, totalPages) / Math.max(1, pagesPerSheet));
+  const sheetsNeeded = Math.ceil(Math.max(1, selectedPages) / Math.max(1, pagesPerSheet));
   const effectivePages = sheetsNeeded * Math.max(1, copies);
 
-  const paperMult = config.paperSizeMultipliers[paperSize] ?? 1.0;
+  const paperMult = (photoSize && config.paperSizeMultipliers[photoSize])
+    ? config.paperSizeMultipliers[photoSize]
+    : (config.paperSizeMultipliers[paperSize] ?? 1.0);
   const qualityMult = config.qualityMultipliers[quality] ?? 1.0;
 
   let subtotal = effectivePages * baseRate * paperMult * qualityMult;

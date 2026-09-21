@@ -163,6 +163,7 @@ export async function POST(req: NextRequest) {
         storage_path,
         storage_expires_at: storageExpiresAt,
         customer_token,
+        page_count: numPages,
       })
       .select()
       .single();

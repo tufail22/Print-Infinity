@@ -39,12 +39,79 @@ function PrintWizardContent() {
   const [step, setStep] = useState<number>(1);
   const [store, setStore] = useState<StoreInfo | null>(null);
   const [loadingStore, setLoadingStore] = useState(true);
+  const [onlinePrinterCount, setOnlinePrinterCount] = useState<number | null>(null);
   const [files, setFiles] = useState<UploadedFileItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [activeJob, setActiveJob] = useState<PrintJobRecord | null>(null);
   const [customerToken, setCustomerToken] = useState<string>("");
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>("upi");
+
+  // Step navigation integrated with browser history (popstate / back gestures)
+  const goToStep = (newStep: number, replace = false) => {
+    if (typeof window !== "undefined") {
+      if (replace) {
+        window.history.replaceState({ step: newStep }, "", "");
+      } else if (newStep !== step) {
+        window.history.pushState({ step: newStep }, "", "");
+      }
+    }
+    setStep(newStep);
+  };
+
+  // Browser back navigation listener
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (!window.history.state || typeof window.history.state.step !== "number") {
+        window.history.replaceState({ step: 1 }, "", "");
+      }
+
+      const handlePopState = (event: PopStateEvent) => {
+        if (event.state && typeof event.state.step === "number") {
+          setStep(event.state.step);
+        } else {
+          setStep(1);
+        }
+      };
+
+      window.addEventListener("popstate", handlePopState);
+      return () => window.removeEventListener("popstate", handlePopState);
+    }
+  }, []);
+
+  // Active Job Recovery from localStorage on browser refresh
+  useEffect(() => {
+    async function checkActiveJobRecovery() {
+      try {
+        const stored = typeof window !== "undefined" ? localStorage.getItem("print_infinity_active_job") : null;
+        if (!stored) return;
+        const parsed = JSON.parse(stored);
+        if (!parsed.id || !parsed.token) return;
+
+        const res = await fetch(
+          `/api/print-jobs/status?job_id=${encodeURIComponent(parsed.id)}&customer_token=${encodeURIComponent(parsed.token)}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.job) {
+            const jobStatus = data.job.status;
+            if (!["completed", "rejected", "expired", "failed"].includes(jobStatus)) {
+              setActiveJob(data.job);
+              setCustomerToken(parsed.token);
+              goToStep(6, true);
+            } else {
+              localStorage.removeItem("print_infinity_active_job");
+            }
+          }
+        } else if (res.status === 404) {
+          localStorage.removeItem("print_infinity_active_job");
+        }
+      } catch (err) {
+        console.warn("Could not restore active print job:", err);
+      }
+    }
+    checkActiveJobRecovery();
+  }, []);
 
   // Check if any uploaded files are images
   const hasImages = files.some(
@@ -95,6 +162,9 @@ function PrintWizardContent() {
       duplex: settings.duplex,
       quality: settings.quality,
       pagesPerSheet: settings.pagesPerSheet,
+      pageRangeType: settings.pageRangeType,
+      customPageRange: settings.customPageRange,
+      photoSize: settings.photoSize,
     },
     pricingConfig
   );
@@ -108,6 +178,7 @@ function PrintWizardContent() {
       try {
         setLoadingStore(true);
         let targetStoreId = storeIdParam;
+        let effectiveStoreId = targetStoreId;
 
         if (!targetStoreId) {
           const { data } = await supabase
@@ -117,10 +188,11 @@ function PrintWizardContent() {
             .limit(1);
 
           if (data && data.length > 0) {
-            targetStoreId = data[0].id;
+            effectiveStoreId = data[0].id;
             setStore(data[0] as StoreInfo);
           } else {
             // Fallback default flagship store
+            effectiveStoreId = "a0000000-0000-0000-0000-000000000001";
             setStore({
               id: "a0000000-0000-0000-0000-000000000001",
               name: "Print Infinity Flagship",
@@ -138,7 +210,23 @@ function PrintWizardContent() {
             .single();
 
           if (data) {
+            effectiveStoreId = data.id;
             setStore(data as StoreInfo);
+          }
+        }
+
+        // Live telemetry: query online printers for this store
+        if (effectiveStoreId) {
+          try {
+            const { data: printers } = await supabase
+              .from("printers")
+              .select("id, is_online")
+              .eq("store_id", effectiveStoreId)
+              .eq("is_online", true);
+            setOnlinePrinterCount(printers ? printers.length : 0);
+          } catch (pErr) {
+            console.warn("Could not query printers:", pErr);
+            setOnlinePrinterCount(0);
           }
         }
       } catch (err) {
@@ -183,7 +271,13 @@ function PrintWizardContent() {
 
       // Storage expires in 15 minutes
       const storageExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-      const paperSizeVal = settings.photoSize ? settings.photoSize : settings.paperSize;
+      const basePaperSize = settings.photoSize ? settings.photoSize : settings.paperSize;
+      const rangeTag = settings.pageRangeType === "custom" && settings.customPageRange?.trim()
+        ? `|pages:${settings.customPageRange.trim()}`
+        : settings.pageRangeType !== "all"
+        ? `|pages:${settings.pageRangeType}`
+        : "";
+      const paperSizeVal = `${basePaperSize}${rangeTag}`;
 
       // 2. Submit via validated, rate-limited server endpoint
       let jobData: any = null;
@@ -199,7 +293,7 @@ function PrintWizardContent() {
             duplex: settings.duplex,
             storage_path: storagePath,
             customer_token: jobToken,
-            page_count: totalPages,
+            page_count: priceBreakdown.effectivePages,
             method: method,
             amount: priceBreakdown.total,
             gateway_ref: gatewayRef || (method === "cash" ? "CASH_COUNTER" : "RAZORPAY_INIT"),
@@ -233,6 +327,7 @@ function PrintWizardContent() {
             storage_path: storagePath,
             storage_expires_at: storageExpiresAt,
             customer_token: jobToken,
+            page_count: priceBreakdown.effectivePages,
           })
           .select()
           .single();
@@ -249,6 +344,16 @@ function PrintWizardContent() {
           status: "pending",
           gateway_ref: gatewayRef || (method === "cash" ? "CASH_COUNTER" : "RAZORPAY_INIT"),
         });
+      }
+
+      // Persist active job in localStorage for browser refresh recovery
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(
+            "print_infinity_active_job",
+            JSON.stringify({ id: jobData.id, token: jobToken, storeId: store.id })
+          );
+        } catch {}
       }
 
       // 4. For UPI: Create Razorpay Order via server-side API and launch Razorpay Checkout
@@ -308,13 +413,13 @@ function PrintWizardContent() {
               ondismiss: () => {
                 console.log("[Razorpay] Customer dismissed checkout modal");
                 setActiveJob(jobData as PrintJobRecord);
-                setStep(6);
+                goToStep(6);
               },
             },
             handler: async (response: any) => {
               try {
                 // Send razorpay_payment_id, razorpay_order_id, razorpay_signature to verify endpoint
-                await fetch("/api/verify-payment", {
+                const vRes = await fetch("/api/verify-payment", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
@@ -325,11 +430,20 @@ function PrintWizardContent() {
                     razorpay_signature: response?.razorpay_signature,
                   }),
                 });
-              } catch (vErr) {
-                console.warn("Payment verification notice:", vErr);
+                const vJson = await vRes.json().catch(() => ({}));
+                if (!vRes.ok || !vJson.success) {
+                  throw new Error(vJson.error || "Payment verification could not be confirmed by the server.");
+                }
+                setActiveJob(jobData as PrintJobRecord);
+                goToStep(6);
+              } catch (vErr: any) {
+                console.error("Payment verification notice/error:", vErr);
+                setSubmissionError(
+                  `Payment recorded (${response?.razorpay_payment_id || "online"}), but server verification was delayed: ${vErr?.message || "Please inform the counter storekeeper"}.`
+                );
+                setActiveJob(jobData as PrintJobRecord);
+                goToStep(6);
               }
-              setActiveJob(jobData as PrintJobRecord);
-              setStep(6);
             },
           });
 
@@ -349,7 +463,7 @@ function PrintWizardContent() {
       }
 
       setActiveJob(jobData as PrintJobRecord);
-      setStep(6); // Advance to live tracker (Step 6) for cash payments
+      goToStep(6); // Advance to live tracker (Step 6) for cash payments
     } catch (err: any) {
       console.error("Submission error:", err);
       setSubmissionError(err?.message || "Could not submit print job. Please try again.");
@@ -359,10 +473,23 @@ function PrintWizardContent() {
   };
 
   const handleResetForNewJob = () => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem("print_infinity_active_job");
+      } catch {}
+    }
+    // Clean up preview blob URLs to prevent browser memory leaks
+    files.forEach((f) => {
+      if (f.previewUrl?.startsWith("blob:")) {
+        try {
+          URL.revokeObjectURL(f.previewUrl);
+        } catch {}
+      }
+    });
     setFiles([]);
     setActiveJob(null);
     rotateCustomerToken();
-    setStep(1);
+    goToStep(1, true);
   };
 
   return (
@@ -371,7 +498,7 @@ function PrintWizardContent() {
       <StoreHeader
         store={store}
         currentStep={step}
-        onStepClick={(targetStep) => setStep(targetStep)}
+        onStepClick={(targetStep) => goToStep(targetStep)}
       />
 
       {/* Main Container */}
@@ -395,17 +522,34 @@ function PrintWizardContent() {
 
             {/* Store Name & Welcoming Tagline */}
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50/90 text-emerald-800 text-xs font-black border border-emerald-200/80 shadow-xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-                <span>Printer Online &amp; Ready</span>
-              </div>
+              {loadingStore ? (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200">
+                  <span className="w-2 h-2 rounded-full bg-slate-400 animate-pulse"></span>
+                  <span>Checking Store Status...</span>
+                </div>
+              ) : !store?.active ? (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-rose-800 text-xs font-black border border-rose-200 shadow-xs">
+                  <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                  <span>Store Currently Closed</span>
+                </div>
+              ) : onlinePrinterCount && onlinePrinterCount > 0 ? (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50/90 text-emerald-800 text-xs font-black border border-emerald-200/80 shadow-xs">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                  <span>Printer Online &amp; Ready ({onlinePrinterCount} active)</span>
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-800 text-xs font-black border border-amber-200 shadow-xs">
+                  <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                  <span>Store Open • Assisted Counter Print</span>
+                </div>
+              )}
 
               <h2 className="text-3xl font-black text-slate-900 tracking-tight">
                 Print Infinity
               </h2>
 
-              <p className="text-xs text-slate-500 max-w-xs mx-auto flex items-center justify-center gap-1 font-medium">
-                <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+              <p className="text-xs text-slate-600 max-w-xs mx-auto flex items-center justify-center gap-1 font-medium">
+                <MapPin className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
                 <span>{store?.address || "In-Store Terminal"}</span>
               </p>
             </div>
@@ -418,7 +562,7 @@ function PrintWizardContent() {
                   <Zap className="w-4.5 h-4.5" />
                 </div>
                 <p className="text-xs font-extrabold text-slate-800">Easy &amp; Fast</p>
-                <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
                   Print your documents in seconds with quickly
                 </p>
               </div>
@@ -429,7 +573,7 @@ function PrintWizardContent() {
                   <Lock className="w-4.5 h-4.5" />
                 </div>
                 <p className="text-xs font-extrabold text-slate-800">Privacy Focused</p>
-                <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
                   Your documents are encrypted and automatically deleted after printing
                 </p>
               </div>
@@ -440,14 +584,14 @@ function PrintWizardContent() {
               <button
                 type="button"
                 id="btn-start-print"
-                onClick={() => setStep(2)}
+                onClick={() => goToStep(2)}
                 className="glass-button-primary w-full py-4 px-6 rounded-2xl text-white font-black text-sm shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 focus:outline-none focus:ring-4 focus:ring-indigo-300"
               >
                 <UploadCloud className="w-5 h-5" />
                 <span>Upload Your Document to Print</span>
                 <ArrowRight className="w-4 h-4 ml-0.5" />
               </button>
-              <p className="text-[11px] text-slate-400 mt-2 font-medium">
+              <p className="text-[11px] text-slate-600 mt-2 font-medium">
                 No app install, no account registration required.
               </p>
             </div>
@@ -459,7 +603,7 @@ function PrintWizardContent() {
           <div className="space-y-4 animate-fadeIn">
             <div className="space-y-1">
               <h2 className="text-xl font-black text-slate-900 tracking-tight">Upload Documents</h2>
-              <p className="text-xs text-slate-500 font-medium">
+              <p className="text-xs text-slate-600 font-medium">
                 Add PDFs, Word documents, presentations, or photos to print.
               </p>
             </div>
@@ -476,7 +620,7 @@ function PrintWizardContent() {
                 <button
                   type="button"
                   id="btn-continue-to-settings"
-                  onClick={() => setStep(3)}
+                  onClick={() => goToStep(3)}
                   className="glass-button-primary w-full py-3.5 px-5 rounded-2xl text-white font-extrabold text-xs shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                 >
                   <span>
@@ -495,13 +639,13 @@ function PrintWizardContent() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-black text-slate-900 tracking-tight">Print Settings</h2>
-                <p className="text-xs text-slate-500 font-medium">
+                <p className="text-xs text-slate-600 font-medium">
                   Customize colors, copies, sizing, and paper layout.
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setStep(2)}
+                onClick={() => goToStep(2)}
                 className="text-xs text-indigo-600 font-extrabold hover:underline"
               >
                 Change Files
@@ -520,7 +664,7 @@ function PrintWizardContent() {
               <button
                 type="button"
                 id="btn-continue-to-preview"
-                onClick={() => setStep(4)}
+                onClick={() => goToStep(4)}
                 className="glass-button-primary w-full py-3.5 px-5 rounded-2xl text-white font-black text-xs shadow-xl active:scale-[0.98] transition-all flex items-center justify-between"
               >
                 <div className="text-left">
@@ -544,8 +688,8 @@ function PrintWizardContent() {
             settings={settings}
             totalPages={totalPages}
             store={store}
-            onProceedToPayment={() => setStep(5)}
-            onBackToSettings={() => setStep(3)}
+            onProceedToPayment={() => goToStep(5)}
+            onBackToSettings={() => goToStep(3)}
           />
         )}
 
@@ -555,13 +699,13 @@ function PrintWizardContent() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-black text-slate-900 tracking-tight">Choose Payment</h2>
-                <p className="text-xs text-slate-500 font-medium">
+                <p className="text-xs text-slate-600 font-medium">
                   Pay instantly via UPI or pay cash at the store counter.
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setStep(4)}
+                onClick={() => goToStep(4)}
                 className="text-xs text-indigo-600 font-extrabold hover:underline"
               >
                 Back to Preview
@@ -607,22 +751,22 @@ function PrintWizardContent() {
 
       {/* BOTTOM FOOTER: STOREKEEPER ADMIN PORTAL */}
       <footer className="w-full max-w-xl mx-auto px-4 mt-8 pt-4 pb-8 border-t border-slate-200/80 text-center space-y-2">
-        <div className="flex flex-wrap items-center justify-center gap-3 text-xs font-semibold text-slate-500">
-          <span className="flex items-center gap-1.5 text-slate-600">
+        <div className="flex flex-wrap items-center justify-center gap-3 text-xs font-semibold text-slate-600">
+          <span className="flex items-center gap-1.5 text-slate-700">
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
             <span>{store?.name || "Print Infinity Terminal"}</span>
           </span>
-          <span className="text-slate-300">•</span>
+          <span className="text-slate-400">•</span>
           <a
             href="/admin"
             id="link-admin-portal"
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/5 hover:bg-slate-900/10 text-slate-700 hover:text-indigo-600 transition-all font-bold border border-slate-200 shadow-xs active:scale-95"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/5 hover:bg-slate-900/10 text-slate-800 hover:text-indigo-600 transition-all font-bold border border-slate-200 shadow-xs active:scale-95"
           >
             <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
             <span>Storekeeper Admin Portal</span>
           </a>
         </div>
-        <p className="text-[11px] text-slate-400 font-medium">
+        <p className="text-[11px] text-slate-500 font-medium">
           Print Infinity Cloud Terminal &copy; {new Date().getFullYear()} • Zero-disk retention privacy
         </p>
       </footer>

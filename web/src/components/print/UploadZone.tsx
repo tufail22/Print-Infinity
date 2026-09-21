@@ -124,6 +124,12 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
 
     setIsProcessing(false);
     if (newItems.length > 0) {
+      // Revoke previous object URLs to prevent browser memory leaks
+      files.forEach((oldItem) => {
+        if (oldItem.previewUrl) {
+          URL.revokeObjectURL(oldItem.previewUrl);
+        }
+      });
       onFilesChange([newItems[0]]);
     }
   };
@@ -158,6 +164,10 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
   };
 
   const removeFile = (id: string) => {
+    const target = files.find((f) => f.id === id);
+    if (target?.previewUrl) {
+      URL.revokeObjectURL(target.previewUrl);
+    }
     const updated = files.filter((f) => f.id !== id);
     onFilesChange(updated);
   };
@@ -255,10 +265,10 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
           <div className="flex items-center justify-between text-xs text-slate-600 font-bold px-1">
             <span className="flex items-center gap-1.5">
               <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-              <span>DOCUMENTS ATTACHED ({files.length})</span>
+              <span>DOCUMENT ATTACHED</span>
             </span>
             <span className="text-indigo-700">
-              Total Pages: {files.reduce((sum, f) => sum + f.totalPages, 0)}
+              Total Pages: {files[0]?.totalPages || 1}
             </span>
           </div>
 
@@ -329,16 +339,16 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
             </div>
           ))}
 
-          {/* Add more button */}
+          {/* Replace document button */}
           {!isUploading && (
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              aria-label="Add another document to print"
+              aria-label="Replace attached document"
               className="min-h-[44px] w-full py-3 px-4 rounded-xl border-2 border-dashed border-indigo-200 text-indigo-700 hover:bg-indigo-50/70 hover:border-indigo-400 text-xs font-bold flex items-center justify-center gap-2 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
             >
               <FilePlus className="w-4 h-4 text-indigo-600" aria-hidden="true" />
-              <span>Add Another Document</span>
+              <span>Replace Document</span>
             </button>
           )}
         </div>

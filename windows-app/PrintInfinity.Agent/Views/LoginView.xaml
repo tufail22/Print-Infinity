@@ -61,7 +61,7 @@
                                FontSize="22" FontWeight="Bold"
                                Foreground="#0F172A"
                                HorizontalAlignment="Center" />
-                    <TextBlock Text="Storekeeper · Shop PC Portal"
+                    <TextBlock Text="Storekeeper · Shop PC Portal v1.1.0"
                                FontSize="12"
                                Foreground="#64748B"
                                HorizontalAlignment="Center" />

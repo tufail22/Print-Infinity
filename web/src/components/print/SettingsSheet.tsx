@@ -60,6 +60,9 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
     duplex: settings.duplex,
     quality: settings.quality,
     pagesPerSheet: settings.pagesPerSheet,
+    pageRangeType: settings.pageRangeType,
+    customPageRange: settings.customPageRange,
+    photoSize: settings.photoSize,
   });
 
   const handleUpdate = (partial: Partial<DetailedPrintSettings>) => {
